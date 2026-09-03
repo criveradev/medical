@@ -1,0 +1,199 @@
+name: Deploy production
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Existing SemVer tag to deploy
+        required: true
+        type: string
+      version:
+        description: Version without the v prefix
+        required: true
+        type: string
+      sha:
+        description: Commit SHA associated with the release
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing SemVer tag to deploy, for example v1.2.3
+        required: true
+        type: string
+      version:
+        description: Version without the v prefix, for example 1.2.3
+        required: true
+        type: string
+      sha:
+        description: Optional expected commit SHA
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  validate-release:
+    name: Validate release reference
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.validate.outputs.sha }}
+      tag: ${{ steps.validate.outputs.tag }}
+      version: ${{ steps.validate.outputs.version }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+
+      - name: Validate immutable tag and synchronized versions
+        id: validate
+        shell: bash
+        env:
+          EXPECTED_TAG: ${{ inputs.tag }}
+          EXPECTED_VERSION: ${{ inputs.version }}
+          EXPECTED_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$EXPECTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Tag SemVer inválido: $EXPECTED_TAG" >&2
+            exit 1
+          fi
+
+          resolved_sha="$(git rev-list -n 1 "$EXPECTED_TAG")"
+          manifest_version="$(tr -d '[:space:]' < version.txt)"
+          server_version="$(node -p "require('./medical-server/package.json').version")"
+          server_lock_version="$(node -p "require('./medical-server/package-lock.json').version")"
+          client_version="$(node -p "require('./medical-client/package.json').version")"
+          client_lock_version="$(node -p "require('./medical-client/package-lock.json').version")"
+
+          test "$EXPECTED_TAG" = "v$EXPECTED_VERSION"
+          test "$manifest_version" = "$EXPECTED_VERSION"
+          test "$server_version" = "$EXPECTED_VERSION"
+          test "$server_lock_version" = "$EXPECTED_VERSION"
+          test "$client_version" = "$EXPECTED_VERSION"
+          test "$client_lock_version" = "$EXPECTED_VERSION"
+
+          if [ -n "$EXPECTED_SHA" ] && [ "$resolved_sha" != "$EXPECTED_SHA" ]; then
+            echo "El tag no apunta al SHA esperado" >&2
+            exit 1
+          fi
+
+          echo "sha=$resolved_sha" >> "$GITHUB_OUTPUT"
+          echo "tag=$EXPECTED_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$EXPECTED_VERSION" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy backend and frontend
+    needs: validate-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_WEB_URL }}
+
+    steps:
+      - name: Checkout validated release
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.validate-release.outputs.tag }}
+
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL }}
+          PRODUCTION_WEB_URL: ${{ vars.PRODUCTION_WEB_URL }}
+        run: |
+          set -euo pipefail
+          required=(
+            RENDER_DEPLOY_HOOK_URL
+            VERCEL_TOKEN
+            VERCEL_ORG_ID
+            VERCEL_PROJECT_ID
+            PRODUCTION_API_URL
+            PRODUCTION_WEB_URL
+          )
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "Falta la configuración de producción: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Trigger backend deployment by commit SHA
+        env:
+          DEPLOY_SHA: ${{ needs.validate-release.outputs.sha }}
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: curl --fail --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}?ref=${DEPLOY_SHA}"
+
+      - name: Wait for the released backend version
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ needs.validate-release.outputs.version }}
+          PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            response="$(curl --fail --silent --show-error "${PRODUCTION_API_URL}/health/ready" || true)"
+            if VERSION_JSON="$response" node -e '
+              const body = JSON.parse(process.env.VERSION_JSON || "{}");
+              process.exit(body.status === "ready" && body.version === process.env.EXPECTED_VERSION ? 0 : 1);
+            '; then
+              echo "Backend listo en la versión ${EXPECTED_VERSION}"
+              exit 0
+            fi
+            echo "Esperando backend (${attempt}/60)..."
+            sleep 10
+          done
+          echo "El backend no alcanzó la versión esperada" >&2
+          exit 1
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Pull Vercel production configuration
+        working-directory: medical-client
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx --yes vercel@59.11.2 pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build frontend for production
+        working-directory: medical-client
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VITE_APP_VERSION: ${{ needs.validate-release.outputs.version }}
+        run: npx --yes vercel@59.11.2 build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy prebuilt frontend
+        working-directory: medical-client
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx --yes vercel@59.11.2 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+
+      - name: Smoke test production
+        env:
+          PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL }}
+          PRODUCTION_WEB_URL: ${{ vars.PRODUCTION_WEB_URL }}
+        run: |
+          curl --fail --silent --show-error --retry 12 --retry-delay 5 --retry-all-errors "${PRODUCTION_API_URL}/health/ready" >/dev/null
+          curl --fail --silent --show-error --retry 12 --retry-delay 5 --retry-all-errors "${PRODUCTION_WEB_URL}" >/dev/null

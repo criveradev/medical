@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Socket.io — Test Medical API</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #0f1117; color: #e2e8f0; padding: 24px; }
+    h1 { color: #60a5fa; margin-bottom: 4px; font-size: 20px; }
+    p  { color: #64748b; margin-bottom: 24px; font-size: 13px; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .card { background: #1e2130; border: 1px solid #2d3148; border-radius: 8px; padding: 16px; }
+    .card h2 { font-size: 13px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+
+    label { display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; margin-top: 10px; }
+    input, select {
+      width: 100%; padding: 8px 10px; background: #0f1117;
+      border: 1px solid #2d3148; border-radius: 6px;
+      color: #e2e8f0; font-size: 13px; font-family: monospace;
+    }
+    button {
+      margin-top: 12px; width: 100%; padding: 9px;
+      background: #3b82f6; color: white; border: none;
+      border-radius: 6px; cursor: pointer; font-size: 13px; font-family: monospace;
+    }
+    button:hover { background: #2563eb; }
+    button.danger { background: #ef4444; }
+    button.danger:hover { background: #dc2626; }
+    button.success { background: #22c55e; }
+    button.success:hover { background: #16a34a; }
+
+    /* Status */
+    #status {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 20px; font-size: 13px;
+      background: #1e2130; border: 1px solid #2d3148; margin-bottom: 20px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; }
+    .dot.connected { background: #22c55e; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+    /* Log */
+    #log {
+      background: #0f1117; border: 1px solid #2d3148; border-radius: 8px;
+      padding: 14px; height: 320px; overflow-y: auto; margin-top: 16px;
+      font-size: 12px; line-height: 1.7;
+    }
+    .log-entry { border-bottom: 1px solid #1e2130; padding: 4px 0; }
+    .log-entry .time { color: #475569; }
+    .log-entry .event { color: #60a5fa; font-weight: bold; }
+    .log-entry .data { color: #a3e635; }
+    .log-entry.system { color: #f59e0b; }
+    .log-entry.error  { color: #ef4444; }
+
+    .salas { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .sala-chip {
+      padding: 4px 10px; background: #1e2130; border: 1px solid #3b82f6;
+      border-radius: 12px; font-size: 11px; color: #60a5fa;
+    }
+  </style>
+</head>
+<body>
+
+<h1>⚡ Socket.io — Medical API Test</h1>
+<p>Panel de prueba para eventos en tiempo real</p>
+
+<div id="status"><span class="dot" id="dot"></span><span id="statusText">Desconectado</span></div>
+
+<div class="grid">
+
+  <!-- Conexión -->
+  <div class="card">
+    <h2>🔌 Conexión</h2>
+    <label>URL del servidor</label>
+    <input id="serverUrl" value="http://localhost:3000">
+    <button class="success" onclick="conectar()">Conectar</button>
+    <button class="danger"  onclick="desconectar()">Desconectar</button>
+
+    <h2 style="margin-top:16px">🏠 Unirse a sala</h2>
+    <label>Sala (admin, doctor:ID, paciente:ID)</label>
+    <input id="sala" value="administrador" placeholder="administrador">
+    <button onclick="unirse()">Unirse</button>
+    <div class="salas" id="salasActivas"></div>
+  </div>
+
+  <!-- Emitir eventos de prueba -->
+  <div class="card">
+    <h2>📤 Simular eventos</h2>
+    <label>Tipo de evento a escuchar</label>
+    <select id="eventoEscuchar">
+      <option value="cita:nueva">cita:nueva</option>
+      <option value="cita:actualizada">cita:actualizada</option>
+      <option value="pago:nuevo">pago:nuevo</option>
+      <option value="resultado:nuevo">resultado:nuevo</option>
+      <option value="historial:nuevo">historial:nuevo</option>
+    </select>
+
+    <label style="margin-top:12px">Para probar: crea/actualiza datos desde Postman</label>
+    <p style="font-size:11px; color:#64748b; margin-top:6px">
+      Los eventos aparecerán en el log cuando el servidor los emita.
+    </p>
+
+    <label style="margin-top:12px">Emitir evento manual (join)</label>
+    <input id="salaManual" placeholder="Sala: doctor:68abc..." value="administrador">
+    <button onclick="emitirJoin()">Emitir join</button>
+  </div>
+
+</div>
+
+<!-- Log -->
+<div id="log"><div class="log-entry system">⏳ Esperando conexión...</div></div>
+<button style="margin-top:8px; background:#1e2130; width:auto; padding:6px 16px" onclick="limpiarLog()">Limpiar log</button>
+
+<script>
+  let socket = null;
+  const salasUnidas = new Set();
+
+  const log = (msg, type = 'system') => {
+    const div = document.getElementById('log');
+    const time = new Date().toLocaleTimeString();
+    div.innerHTML += `<div class="log-entry ${type}"><span class="time">[${time}]</span> ${msg}</div>`;
+    div.scrollTop = div.scrollHeight;
+  };
+
+  const setStatus = (connected) => {
+    document.getElementById('dot').className = 'dot' + (connected ? ' connected' : '');
+    document.getElementById('statusText').textContent = connected ? 'Conectado' : 'Desconectado';
+  };
+
+  const eventos = ['cita:nueva','cita:actualizada','pago:nuevo','resultado:nuevo','historial:nuevo'];
+
+  function conectar() {
+    const url = document.getElementById('serverUrl').value;
+    if (socket) socket.disconnect();
+
+    socket = io(url, { transports: ['websocket'] });
+
+    socket.on('connect', () => {
+      setStatus(true);
+      log(`✅ Conectado — ID: <span class="data">${socket.id}</span>`);
+      // Escuchar todos los eventos del sistema
+      eventos.forEach(ev => {
+        socket.on(ev, (data) => {
+          log(`<span class="event">${ev}</span> → <span class="data">${JSON.stringify(data, null, 0)}</span>`, 'log-entry');
+        });
+      });
+    });
+
+    socket.on('disconnect', () => {
+      setStatus(false);
+      log('❌ Desconectado', 'error');
+    });
+
+    socket.on('connect_error', (err) => {
+      log(`⚠️ Error de conexión: ${err.message}`, 'error');
+    });
+  }
+
+  function desconectar() {
+    if (socket) { socket.disconnect(); socket = null; }
+    salasUnidas.clear();
+    document.getElementById('salasActivas').innerHTML = '';
+  }
+
+  function unirse() {
+    if (!socket) return log('⚠️ Conéctate primero', 'error');
+    const sala = document.getElementById('sala').value.trim();
+    if (!sala) return;
+    socket.emit('join', sala);
+    salasUnidas.add(sala);
+    renderSalas();
+    log(`🏠 Unido a sala: <span class="data">${sala}</span>`);
+  }
+
+  function emitirJoin() {
+    if (!socket) return log('⚠️ Conéctate primero', 'error');
+    const sala = document.getElementById('salaManual').value.trim();
+    socket.emit('join', sala);
+    salasUnidas.add(sala);
+    renderSalas();
+    log(`🏠 join emitido a: <span class="data">${sala}</span>`);
+  }
+
+  function renderSalas() {
+    document.getElementById('salasActivas').innerHTML =
+      [...salasUnidas].map(s => `<span class="sala-chip">${s}</span>`).join('');
+  }
+
+  function limpiarLog() {
+    document.getElementById('log').innerHTML = '';
+  }
+</script>
+</body>
+</html>

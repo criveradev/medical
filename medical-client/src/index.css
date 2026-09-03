@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Azul clínico */
+  --color-brand-50:  #eff6fc;
+  --color-brand-100: #d8e9f7;
+  --color-brand-200: #b3d2ee;
+  --color-brand-300: #82b4e2;
+  --color-brand-400: #4f92d2;
+  --color-brand-500: #2e75bb;
+  --color-brand-600: #1f5fa3;
+  --color-brand-700: #1a4d84;
+  --color-brand-800: #173f6b;
+  --color-brand-900: #122f4f;
+
+  /* Acento verde salud */
+  --color-accent-500: #1d9e75;
+  --color-accent-600: #0f6e56;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: #1e293b;
+  background: #ffffff;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Campo de teléfono internacional (react-phone-number-input) con look de la app */
+.PhoneInput {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.PhoneInput:focus-within {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 2px var(--color-brand-100);
+}
+.PhoneInputInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #1e293b;
+}
+.PhoneInputCountrySelectArrow {
+  color: #64748b;
+}
+.PhoneInputCountryIcon {
+  width: 22px;
+  height: 16px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  border-radius: 2px;
+}
