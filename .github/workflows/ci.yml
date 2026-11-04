@@ -1,0 +1,222 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-safety:
+    name: Repository safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Reject tracked secrets and generated files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          forbidden=(
+            Medical.env
+            medical-server/.env
+            medical-client/.env
+            medical-client/.vercel/project.json
+          )
+
+          for path in "${forbidden[@]}"; do
+            if git ls-files --error-unmatch "$path" >/dev/null 2>&1; then
+              echo "::error file=$path::Este archivo no debe estar versionado"
+              exit 1
+            fi
+          done
+
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            medical-server/package-lock.json
+            medical-client/package-lock.json
+
+      - name: Audit backend dependencies
+        working-directory: medical-server
+        run: npm audit --package-lock-only --audit-level=high
+
+      - name: Audit frontend dependencies
+        working-directory: medical-client
+        run: npm audit --package-lock-only --audit-level=high
+
+  frontend-build:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: medical-client
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: medical-client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Test frontend components
+        run: npm test
+
+  backend-tests:
+    name: Backend integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: medical-server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Validate Docker Compose
+        run: docker compose --profile test config --quiet
+
+      - name: Run backend tests
+        run: npm run docker:test
+
+  production-images:
+    name: Production images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build backend production image
+        run: docker build --target production --tag medical-api:ci medical-server
+
+      - name: Build frontend production image
+        run: docker build --target production --tag medical-web:ci medical-client
+
+      - name: Smoke test frontend production image
+        shell: bash
+        run: |
+          set -euo pipefail
+          container_id="$(docker run --detach --rm --publish 18080:80 medical-web:ci)"
+          trap 'docker stop "$container_id" >/dev/null 2>&1 || true' EXIT
+
+          headers="$(curl --fail --silent --show-error --retry 10 --retry-delay 1 --retry-all-errors --head http://127.0.0.1:18080/)"
+          grep -qi '^Content-Security-Policy:' <<< "$headers"
+          grep -qi '^X-Content-Type-Options: nosniff' <<< "$headers"
+
+      - name: Validate backend production image
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(docker image inspect --format='{{.Config.User}}' medical-api:ci)" = "node"
+          docker run --rm --entrypoint node medical-api:ci --version | grep -E '^v24\.'
+
+  end-to-end:
+    name: End-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs:
+      - repository-safety
+      - dependency-audit
+      - frontend-build
+      - backend-tests
+      - production-images
+
+    defaults:
+      run:
+        working-directory: medical-server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Validate Docker Compose
+        run: docker compose --profile e2e config --quiet
+
+      - name: Run Playwright E2E
+        run: npm run docker:e2e
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            medical-client/playwright-report/
+            medical-client/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop Docker services
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+
+  ci-success:
+    name: CI success
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - repository-safety
+      - dependency-audit
+      - frontend-build
+      - backend-tests
+      - production-images
+      - end-to-end
+
+    steps:
+      - name: Verify required jobs
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          if echo "$RESULTS" | jq -e 'all(.[]; .result == "success")' >/dev/null; then
+            exit 0
+          fi
+          echo "$RESULTS" | jq .
+          exit 1
