@@ -1,0 +1,80 @@
+name: Create release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable SemVer version without the v prefix, for example 1.2.3
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: create-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate and create release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Validate synchronized release version
+        id: validate
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Versión SemVer estable inválida: $VERSION" >&2
+            exit 1
+          fi
+
+          tag="v${VERSION}"
+          manifest_version="$(tr -d '[:space:]' < version.txt)"
+          server_version="$(node -p "require('./medical-server/package.json').version")"
+          server_lock_version="$(node -p "require('./medical-server/package-lock.json').version")"
+          client_version="$(node -p "require('./medical-client/package.json').version")"
+          client_lock_version="$(node -p "require('./medical-client/package-lock.json').version")"
+
+          test "$manifest_version" = "$VERSION"
+          test "$server_version" = "$VERSION"
+          test "$server_lock_version" = "$VERSION"
+          test "$client_version" = "$VERSION"
+          test "$client_lock_version" = "$VERSION"
+
+          if git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
+            echo "El tag ${tag} ya existe" >&2
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag and GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.validate.outputs.tag }}
+          RELEASE_SHA: ${{ steps.validate.outputs.sha }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$RELEASE_SHA" \
+            --title "$RELEASE_TAG" \
+            --generate-notes

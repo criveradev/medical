@@ -1,0 +1,60 @@
+services:
+  - type: web
+    name: medical-api
+    runtime: node
+    rootDir: medical-server
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    autoDeployTrigger: off
+    healthCheckPath: /health/ready
+    maxShutdownDelaySeconds: 30
+    initialDeployHook: npm run seed:roles && npm run seed:catalogos
+    envVars:
+      - key: NODE_VERSION
+        value: 24.20.0
+      - key: NODE_ENV
+        value: production
+      - key: API_URL
+        value: https://api.medical.criveradev.com
+      - key: CLIENT_URL
+        value: https://medical.criveradev.com
+      - key: APP_TIME_ZONE
+        value: America/Santiago
+      - key: LOG_LEVEL
+        value: info
+      - key: ENABLE_REMINDER_CRON
+        value: "true"
+      - key: COOKIE_SAME_SITE
+        value: lax
+      - key: AUDIT_RETENTION_DAYS
+        value: "365"
+      - key: GRACEFUL_SHUTDOWN_TIMEOUT_MS
+        value: "25000"
+      - key: JWT_EXPIRES
+        value: 15m
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: AUDIT_LOG_SECRET
+        generateValue: true
+      - key: MFA_ENCRYPTION_KEY
+        generateValue: true
+      - key: BCRYPT_ROUNDS
+        value: "12"
+      - key: MONGO_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: SENTRY_DSN
+        sync: false

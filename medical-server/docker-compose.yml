@@ -1,0 +1,163 @@
+name: medical-backend
+
+services:
+  backend:
+    build:
+      context: .
+      target: development
+    init: true
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      API_URL: http://localhost:${PORT:-3000}
+      APP_TIME_ZONE: ${APP_TIME_ZONE:-America/Santiago}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:4200},http://frontend:4200
+      MONGO_URI: mongodb://mongo:27017/medical_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+      JWT_SECRET: ${JWT_SECRET:-docker-development-access-secret-change-me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-docker-development-refresh-secret-change-me}
+      JWT_EXPIRES: ${JWT_EXPIRES:-8h}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+      AUDIT_LOG_SECRET: ${AUDIT_LOG_SECRET:-docker-development-audit-secret-change-me}
+      AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-365}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:-docker-development-mfa-key-change-me-now}
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./src:/app/src:ro
+      - ./server.js:/app/server.js:ro
+      - ./instrument.js:/app/instrument.js:ro
+      - uploads:/app/uploads
+      - logs:/app/logs
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ../medical-client
+      target: development
+    init: true
+    environment:
+      VITE_API_URL: ""
+      VITE_PROXY_TARGET: http://backend:3000
+    ports:
+      - "${FRONTEND_PORT:-4200}:4200"
+    volumes:
+      - ../medical-client/src:/app/src:ro
+      - ../medical-client/public:/app/public:ro
+      - ../medical-client/index.html:/app/index.html:ro
+      - ../medical-client/vite.config.js:/app/vite.config.js:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4200').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      target: test
+    init: true
+    environment:
+      NODE_ENV: test
+      MONGO_TEST_URI: mongodb://mongo-test:27017/medical_test
+      JWT_SECRET: test-access-secret-with-at-least-32-characters
+      JWT_REFRESH_SECRET: test-refresh-secret-with-at-least-32-characters
+      MFA_ENCRYPTION_KEY: test-mfa-encryption-key-with-at-least-32-characters
+      RATE_LIMIT_MAX: 10000
+      LOGIN_RATE_MAX: 10000
+    depends_on:
+      mongo-test:
+        condition: service_healthy
+
+  mongo-test:
+    profiles: ["test"]
+    image: mongo:7
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+
+  e2e:
+    profiles: ["e2e"]
+    build:
+      context: ../medical-client
+      target: e2e
+    init: true
+    ipc: host
+    environment:
+      CI: "true"
+      PLAYWRIGHT_BASE_URL: http://frontend:4200
+    volumes:
+      - ../medical-client/playwright-report:/app/playwright-report
+      - ../medical-client/test-results:/app/test-results
+    depends_on:
+      frontend:
+        condition: service_healthy
+
+volumes:
+  uploads:
+  logs:
+  redis_data:
+  mongo_data:
