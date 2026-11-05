@@ -166,7 +166,6 @@ jobs:
           node-version: 24
 
       - name: Pull Vercel production configuration
-        working-directory: medical-client
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -174,16 +173,15 @@ jobs:
         run: npx --yes vercel@59.11.2 pull --yes --environment=production --token="$VERCEL_TOKEN"
 
       - name: Build frontend for production
-        working-directory: medical-client
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VITE_APP_VERSION: ${{ needs.validate-release.outputs.version }}
-        run: npx --yes vercel@59.11.2 build --prod --token="$VERCEL_TOKEN"
+          VITE_API_URL: ${{ vars.PRODUCTION_API_URL }}
+        run: npx --yes vercel@59.11.2 build --prod --output .vercel/output --token="$VERCEL_TOKEN"
 
       - name: Deploy prebuilt frontend
-        working-directory: medical-client
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
