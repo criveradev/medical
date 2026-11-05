@@ -171,7 +171,7 @@ function Form({ doctorId }) {
 
   return (
     <div className="space-y-6">
-      <Card className="max-w-xl p-6">
+      <Card className="max-w-3xl p-5 sm:p-6">
         <form onSubmit={enviar} className="space-y-4">
           <ErrorMsg>{err}</ErrorMsg>
           <Field label="Cita / paciente">

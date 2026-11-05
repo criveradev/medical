@@ -87,7 +87,7 @@ export default function Especialidades() {
         </Btn>
       </PageHeader>
 
-      <div className="mb-4 flex flex-wrap items-end gap-2">
+      <div className="portal-filtros mb-4 flex flex-wrap items-end gap-3">
         <div>
           <label className="mb-1 block text-xs text-slate-500">Departamento</label>
           <select className={inputCls + ' w-auto'} value={fDep} onChange={(e) => setFDep(e.target.value)}>
@@ -105,8 +105,8 @@ export default function Especialidades() {
       ) : lista.length === 0 ? (
         <Card><Empty>{fDep ? 'No hay especialidades en ese departamento.' : 'No hay especialidades. Crea la primera.'}</Empty></Card>
       ) : (
-        <Card className="overflow-hidden">
-          <table className="w-full text-sm">
+        <Card className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-5 py-3 font-medium">Especialidad</th>

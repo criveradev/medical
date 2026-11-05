@@ -314,3 +314,49 @@ describe('PUT /api/v1/citas/:id/estado', () => {
         expect(res.status).toBe(400);
     });
 });
+
+describe('Agenda pública y reservas de pacientes', () => {
+    const fecha = '2030-06-12';
+    const reserva = {
+        fechaHora: '2030-06-12T13:00:00.000Z',
+        motivo: 'Control general',
+        tipo: 'control',
+    };
+
+    test('Muestra solo cupos libres, incluso cuando la cita existente empieza fuera de un bloque', async () => {
+        await Cita.create({ ...reserva, fechaHora: '2030-06-12T13:15:00.000Z', doctorId, pacienteId });
+
+        const res = await request(app).get(`/api/v1/agenda/cupos/${doctorId}?fecha=${fecha}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.slots).toContainEqual({ hora: '10:00', fechaHora: '2030-06-12T14:00:00.000Z' });
+        const horasLibres = res.body.slots.map(slot => slot.hora);
+        expect(horasLibres).not.toContain('09:00');
+        expect(horasLibres).not.toContain('09:30');
+    });
+
+    test('Exige sesión y vincula la reserva exclusivamente a la ficha del paciente', async () => {
+        const url = '/api/v1/agenda/reservas';
+        const datos = { ...reserva, doctorId };
+        expect((await request(app).post(url).send(datos)).status).toBe(401);
+
+        const login = await request(app).post('/api/v1/auth/login')
+            .send({ email: pacienteData.email, password: '12345678-9' });
+        const authorization = `Bearer ${login.body.accessToken}`;
+
+        const ajena = await request(app).post(url).set('Authorization', authorization)
+            .send({ ...datos, pacienteId: doctorId });
+        expect(ajena.status).toBe(403);
+
+        const fueraDeBloque = await request(app).post(url).set('Authorization', authorization)
+            .send({ ...datos, fechaHora: '2030-06-12T13:05:00.000Z' });
+        expect(fueraDeBloque.status).toBe(400);
+
+        const creada = await request(app).post(url).set('Authorization', authorization).send(datos);
+        expect(creada.status).toBe(201);
+        expect(creada.body.cita.pacienteId).toBe(pacienteId);
+
+        const ocupado = await request(app).post(url).set('Authorization', authorization).send(datos);
+        expect(ocupado.status).toBe(409);
+    });
+});

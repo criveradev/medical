@@ -22,7 +22,8 @@ const hashIp = (ip) => {
 const audit = (req, res, next) => {
   const segments = req.path.split('/').filter(Boolean);
   const resource = segments[0] || 'api';
-  if (!AUDITED_RESOURCES.has(resource)) return next();
+  const esReserva = resource === 'agenda' && segments[1] === 'reservas';
+  if (!esReserva && !AUDITED_RESOURCES.has(resource)) return next();
 
   res.once('finish', () => {
     const statusCode = res.statusCode;

@@ -21,6 +21,8 @@ router.get('/', (req, res) => {
 });
 
 router.use('/auth', require('./auth.routes'));
+router.use('/agenda', require('./agenda.routes'));
+router.use('/registro', require('./registro.routes'));
 router.use('/departamentos', require('./departamentos.routes'));
 router.use('/especialidades', require('./especialidades.routes'));
 router.use('/doctores', require('./doctores.routes'));

@@ -5,8 +5,8 @@ import 'react-phone-number-input/style.css';
 
 /** Clase Tailwind reutilizable para inputs/selects/textarea. @type {string} */
 export const inputCls =
-  'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition ' +
-  'focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50';
+  'min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 outline-none transition sm:text-sm ' +
+  'focus:border-brand-500 focus:ring-4 focus:ring-brand-100 disabled:bg-slate-50 disabled:text-slate-500';
 
 /**
  * Indicador de carga centrado con etiqueta opcional.
@@ -28,13 +28,15 @@ export function Spinner({ label = 'Cargando…' }) {
  */
 export function PageHeader({ title, subtitle, children }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+    <header className="relative isolate mb-5 flex flex-wrap items-end justify-between gap-5 overflow-hidden rounded-3xl bg-linear-to-br from-brand-900 to-brand-700 p-5 text-white sm:p-7">
+      <div aria-hidden="true" className="pointer-events-none absolute -top-28 -right-20 -z-10 size-72 rounded-full border-[32px] border-white/10" />
+      <div className="min-w-0">
+        <p className="text-xs font-semibold tracking-widest text-brand-200 uppercase">Medical · Portal</p>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight break-words">{title}</h1>
+        {subtitle && <p className="mt-2 max-w-xl text-sm leading-relaxed text-brand-100">{subtitle}</p>}
       </div>
-      {children && <div className="flex gap-2">{children}</div>}
-    </div>
+      {children && <div className="flex flex-wrap gap-2 [&_button]:border-white/30 [&_button]:bg-white [&_button]:text-brand-900 [&_button:hover]:bg-brand-100">{children}</div>}
+    </header>
   );
 }
 
@@ -45,7 +47,7 @@ export function PageHeader({ title, subtitle, children }) {
  */
 export function Card({ children, className = '', ...props }) {
   return (
-    <div className={'rounded-xl border border-slate-200 bg-white ' + className} {...props}>{children}</div>
+    <div className={'min-w-0 rounded-2xl border border-brand-100 bg-white shadow-sm shadow-brand-900/5 ' + className} {...props}>{children}</div>
   );
 }
 
@@ -56,10 +58,10 @@ export function Card({ children, className = '', ...props }) {
  */
 export function Btn({ children, variant = 'primary', className = '', ...props }) {
   const base =
-    'inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-60';
+    'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60';
   const variants = {
-    primary: 'bg-brand-600 text-white hover:bg-brand-700',
-    ghost: 'border border-slate-300 text-slate-700 hover:bg-slate-50',
+    primary: 'bg-brand-700 text-white hover:bg-brand-800',
+    ghost: 'border border-brand-200 bg-white text-brand-800 hover:bg-brand-50',
     danger: 'border border-red-300 text-red-700 hover:bg-red-50',
   };
   return (
@@ -97,8 +99,8 @@ export function Badge({ color = 'slate', children }) {
  */
 export function Empty({ children = 'Sin registros todavía.' }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-16 text-sm text-slate-400">
-      <Inbox size={28} /> {children}
+    <div className="flex flex-col items-center justify-center gap-3 px-5 py-12 text-center text-sm leading-relaxed text-slate-600">
+      <span className="grid size-14 place-items-center rounded-2xl bg-brand-50 text-brand-700"><Inbox size={26} aria-hidden="true" /></span> {children}
     </div>
   );
 }
@@ -179,7 +181,7 @@ export function Field({ label, children, hint }) {
     <label className="block">
       <span className="mb-1.5 block text-sm font-medium text-slate-700">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs text-slate-600">{hint}</span>}
     </label>
   );
 }
@@ -193,19 +195,19 @@ export function Modal({ open, onClose, title, children }) {
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:p-8"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-brand-900/60 p-3 backdrop-blur-sm sm:p-8"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-xl"
+        className="w-full min-w-0 max-w-lg overflow-hidden rounded-3xl border border-brand-100 bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
-          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 transition hover:text-slate-700" aria-label="Cerrar">
+        <div className="flex items-center justify-between gap-3 border-b border-brand-100 bg-brand-50 px-5 py-4">
+          <h2 className="text-lg font-bold text-brand-900">{title}</h2>
+          <button onClick={onClose} type="button" className="grid size-11 shrink-0 place-items-center rounded-xl text-brand-700 transition hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-brand-600" aria-label="Cerrar">
             <X size={20} />
           </button>
         </div>

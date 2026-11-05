@@ -102,7 +102,7 @@ export default function Pagos() {
         </Btn>
       </PageHeader>
 
-      <div className="mb-4 flex flex-wrap items-end gap-2">
+      <div className="portal-filtros mb-4 flex flex-wrap items-end gap-3">
         <div>
           <label className="mb-1 block text-xs text-slate-500">Estado</label>
           <select className={inputCls + ' w-auto'} value={fEstado} onChange={(e) => setFEstado(e.target.value)}>
@@ -142,8 +142,8 @@ export default function Pagos() {
       ) : pagos.length === 0 ? (
         <Card><Empty>No hay pagos registrados.</Empty></Card>
       ) : (
-        <Card className="overflow-hidden">
-          <table className="w-full text-sm">
+        <Card className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-5 py-3 font-medium">Fecha</th>
@@ -243,6 +243,7 @@ export default function Pagos() {
                 <Row k="Paciente" v={voucher.paciente || '—'} />
                 <Row k="Atención" v={voucher.cita} />
                 <Row k="Método" v={voucher.metodo} />
+                <Row k="Estado" v={{ pendiente: 'Pendiente', pagado: 'Pagado', anulado: 'Anulado' }[voucher.estado] || 'Sin información'} />
               </dl>
               <div className="mt-3 flex items-center justify-between border-t border-dashed border-slate-300 pt-3">
                 <span className="text-sm text-slate-500">Total</span>

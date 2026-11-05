@@ -5,6 +5,8 @@ import Login from './pages/Login.jsx';
 import ProtectedRoute from './components/portal/ProtectedRoute.jsx';
 import PortalLayout from './components/portal/PortalLayout.jsx';
 
+const Agendar = lazy(() => import('./pages/Agendar.jsx'));
+const Registro = lazy(() => import('./pages/Registro.jsx'));
 const Dashboard = lazy(() => import('./pages/portal/Dashboard.jsx'));
 const Citas = lazy(() => import('./pages/portal/Citas.jsx'));
 const Pacientes = lazy(() => import('./pages/portal/Pacientes.jsx'));
@@ -34,6 +36,8 @@ export default function App() {
       {/* Público */}
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/agendar" element={<Agendar />} />
+      <Route path="/registro" element={<Registro />} />
 
       {/* Portal protegido */}
       <Route
