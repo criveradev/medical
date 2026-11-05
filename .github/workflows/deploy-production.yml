@@ -136,7 +136,7 @@ jobs:
         env:
           DEPLOY_SHA: ${{ needs.validate-release.outputs.sha }}
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: curl --fail --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}?ref=${DEPLOY_SHA}"
+        run: curl --fail --silent --show-error --request POST --url-query "ref=${DEPLOY_SHA}" "${RENDER_DEPLOY_HOOK_URL}"
 
       - name: Wait for the released backend version
         shell: bash
