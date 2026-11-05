@@ -5,6 +5,7 @@ const Role = require('../src/models/Role');
 const User = require('../src/models/User');
 const Paciente = require('../src/models/Paciente');
 const CodigoRegistro = require('../src/models/CodigoRegistro');
+const { solicitarCodigo, registrar } = require('../src/services/registro.service');
 
 const datos = {
     nombre: 'Ana',
@@ -33,6 +34,19 @@ async function codigoPara(email) {
         envio.mockRestore();
     }
 }
+
+test.each([{ $ne: null }, ['ana@example.test']])('Rechaza correos estructurados sin modificar desafíos existentes: %j', async email => {
+    await codigoPara(datos.email);
+    const original = await CodigoRegistro.findById(datos.email).lean();
+
+    expect((await request(app).post('/api/v1/registro/codigo').send({ email })).status).toBe(400);
+    expect((await request(app).post('/api/v1/registro').send({ ...datos, email, codigo: '123456' })).status).toBe(400);
+    await expect(solicitarCodigo(email)).rejects.toMatchObject({ status: 400 });
+    await expect(registrar({ ...datos, email, codigo: '123456' })).rejects.toMatchObject({ status: 400 });
+
+    expect(await CodigoRegistro.findById(datos.email).lean()).toEqual(original);
+    expect(await User.countDocuments()).toBe(0);
+});
 
 test('Rechaza códigos inválidos o emitidos para otro correo', async () => {
     const codigo = await codigoPara('otro@example.test');
@@ -77,6 +91,20 @@ test('Informa un fallo de entrega sin exponer detalles del proveedor', async () 
 
 const replicaSet = process.env.MONGO_TEST_URI?.includes('replicaSet=');
 const testConTransacciones = replicaSet ? test : test.skip;
+
+testConTransacciones.each(['12.345.678-5', '123456785', '012345678-5'])('Reconoce el RUT existente con formato %s sin alterar la ficha', async rut => {
+    const role = await Role.create({ nombre: 'paciente', descripcion: 'Paciente' });
+    const usuario = await User.create({ ...datos, email: 'existente@example.test', roleId: role._id });
+    const paciente = await Paciente.create({ ...datos, rut, usuarioId: usuario._id });
+
+    const codigo = await codigoPara(datos.email);
+    const res = await request(app).post('/api/v1/registro').send({ ...datos, codigo });
+
+    expect(res.status).toBe(409);
+    expect(await User.countDocuments()).toBe(1);
+    expect((await Paciente.findById(paciente._id)).rut).toBe(rut);
+    expect(await CodigoRegistro.findById(datos.email)).not.toBeNull();
+});
 
 testConTransacciones('Crea una cuenta paciente y su ficha, y evita reclamar un RUT existente', async () => {
     await Role.create({ nombre: 'paciente', descripcion: 'Paciente' });

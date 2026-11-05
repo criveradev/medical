@@ -154,13 +154,13 @@ exports.crear = async (req, res, next) => {
       req.body;
 
     const doctor = await Doctor.findOne({
-      _id: doctorId,
+      _id: { $eq: doctorId },
       activo: true
     }).populate("usuarioId", "nombre apellido");
     if (!doctor)
       return res.status(404).json({ mensaje: "Doctor no encontrado" });
     const paciente = await Paciente.findOne({
-      _id: pacienteId,
+      _id: { $eq: pacienteId },
       activo: true
     }).populate("usuarioId", "nombre apellido email");
     if (!paciente)
@@ -326,7 +326,7 @@ exports.cambiarEstado = async (req, res, next) => {
           throw httpError(409, "El horario fue ocupado por otra cita");
       }
       return Cita.findByIdAndUpdate(
-        req.params.id,
+        actual._id,
         { estado, motivoCancelacion, canceladoPor },
         { returnDocument: "after", runValidators: true }
       ).populate(populateCita);
@@ -400,7 +400,7 @@ exports.disponibilidad = async (req, res, next) => {
 
     const agendaPublica = res.locals.agendaPublica;
     const doctor = await Doctor.findOne({
-      _id: req.params.doctorId,
+      _id: { $eq: req.params.doctorId },
       ...(agendaPublica ? { activo: true } : {})
     });
     if (!doctor)
@@ -439,7 +439,7 @@ exports.disponibilidad = async (req, res, next) => {
 
     const duracionMs = duracion * 60_000;
     const citasDelDia = await Cita.find({
-      doctorId: req.params.doctorId,
+      doctorId: { $eq: doctor._id },
       estado: { $nin: ["cancelada", "no_asistio"] },
       fechaHora: { $gte: new Date(inicio.getTime() - duracionMs), $lte: finDia }
     }).select("fechaHora");

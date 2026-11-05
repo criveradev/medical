@@ -117,6 +117,18 @@ beforeEach(async () => {
 
 // ─── Tests de Crear Cita ──────────────────────────────────────
 describe('POST /api/v1/citas', () => {
+    test.each(['doctorId', 'pacienteId'])('Rechaza operadores y arreglos en %s sin crear citas', async campo => {
+        const datos = {
+            pacienteId, doctorId, fechaHora: '2030-06-12T13:00:00.000Z',
+            motivo: 'Control general', tipo: 'control',
+        };
+        for (const valor of [{ $ne: null }, [datos[campo]]]) {
+            const res = await request(app).post('/api/v1/citas')
+                .set('Authorization', `Bearer ${token}`).send({ ...datos, [campo]: valor });
+            expect(res.status).toBe(400);
+        }
+        expect(await Cita.countDocuments()).toBe(0);
+    });
     test('✅ Crear cita correctamente', async () => {
         const res = await request(app)
             .post('/api/v1/citas')
@@ -273,6 +285,18 @@ describe('GET /api/v1/citas/disponibilidad/:doctorId', () => {
 
 // ─── Tests de Cambiar Estado ──────────────────────────────────
 describe('PUT /api/v1/citas/:id/estado', () => {
+    test('Rechaza un estado estructurado sin modificar la cita', async () => {
+        const cita = await Cita.create({
+            pacienteId, doctorId, fechaHora: '2030-06-12T13:00:00.000Z',
+            motivo: 'Control general', tipo: 'control',
+        });
+        for (const estado of [{ $ne: null }, ['confirmada']]) {
+            const res = await request(app).put(`/api/v1/citas/${cita._id}/estado`)
+                .set('Authorization', `Bearer ${token}`).send({ estado });
+            expect(res.status).toBe(400);
+        }
+        expect((await Cita.findById(cita._id)).estado).toBe('pendiente');
+    });
     test('✅ Cambiar estado a confirmada', async () => {
         const cita = await request(app)
             .post('/api/v1/citas')
