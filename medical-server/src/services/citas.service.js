@@ -44,7 +44,7 @@ async function existeSolape({ doctorId, fechaHora, duracion, excluirCitaId }) {
   const fin = new Date(inicio.getTime() + duracion * 60000);
   const ventanaInicio = new Date(inicio.getTime() - duracion * 60000);
   const filtro = {
-    doctorId,
+    doctorId: { $eq: doctorId },
     estado: { $nin: ESTADOS_SIN_RESERVA },
     fechaHora: { $gt: ventanaInicio, $lt: fin },
   };

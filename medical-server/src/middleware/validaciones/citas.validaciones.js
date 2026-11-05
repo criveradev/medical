@@ -6,9 +6,11 @@ const { body } = require('express-validator');
 
 exports.validarCrearCita = [
   body('pacienteId')
+    .isString().withMessage('ID de paciente inválido').bail()
     .notEmpty().withMessage('El paciente es requerido')
     .isMongoId().withMessage('ID de paciente inválido'),
   body('doctorId')
+    .isString().withMessage('ID de doctor inválido').bail()
     .notEmpty().withMessage('El doctor es requerido')
     .isMongoId().withMessage('ID de doctor inválido'),
   body('fechaHora')
@@ -24,7 +26,11 @@ exports.validarCrearCita = [
 
 exports.validarCambiarEstado = [
   body('estado')
+    .isString().withMessage('Estado inválido').bail()
     .notEmpty().withMessage('El estado es requerido')
     .isIn(['pendiente', 'confirmada', 'completada', 'cancelada', 'no_asistio'])
-    .withMessage('Estado inválido')
+    .withMessage('Estado inválido'),
+  body(['motivoCancelacion', 'canceladoPor'])
+    .optional({ values: 'null' })
+    .isString().withMessage('El valor debe ser texto')
 ];

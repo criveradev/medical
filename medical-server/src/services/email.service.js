@@ -2,7 +2,14 @@
 // src/services/email.service.js — Servicio de envío de emails
 // ═══════════════════════════════════════════════════════════════
 
+const { readFileSync } = require('node:fs');
+const { join } = require('node:path');
 const transporter = require('../config/email');
+const { LOGO_CID, renderizarEmail } = require('../templates/email');
+
+// Versión PNG de medical-client/public/favicon.svg para los clientes de correo.
+const LOGO = readFileSync(join(__dirname, '../assets/medical-email.png'));
+const LOGO_ARCHIVO = 'medical.png';
 
 // Remitente de los correos. En proveedores transaccionales (Resend, SendGrid…)
 // el usuario SMTP no es una dirección válida de envío, así que se usa EMAIL_FROM
@@ -13,10 +20,10 @@ const REMITENTE = `"Medical" <${process.env.EMAIL_FROM || process.env.EMAIL_USER
  * Envía un correo. Si RESEND_API_KEY está definida, usa la API HTTP de Resend
  * (puerto 443) — necesario en hosts que bloquean SMTP (Render free, Railway…).
  * Si no, cae a SMTP vía Nodemailer (ideal para desarrollo local).
- * @param {{to: string, subject: string, html: string}} param0 - Destinatario, asunto y cuerpo HTML.
+ * @param {{to: string, subject: string, html: string, text: string}} param0 - Contenido del correo.
  * @returns {Promise<void>}
  */
-const enviar = async ({ to, subject, html }) => {
+const enviar = async ({ to, subject, html, text }) => {
   if (process.env.RESEND_API_KEY) {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -30,6 +37,13 @@ const enviar = async ({ to, subject, html }) => {
         to:      [to],
         subject,
         html,
+        text,
+        attachments: [{
+          filename: LOGO_ARCHIVO,
+          content: LOGO.toString('base64'),
+          content_type: 'image/png',
+          content_id: LOGO_CID,
+        }],
       }),
     });
     if (!res.ok) {
@@ -39,165 +53,81 @@ const enviar = async ({ to, subject, html }) => {
     return;
   }
   // Fallback: SMTP (desarrollo local)
-  await transporter.sendMail({ from: REMITENTE, to, subject, html });
-};
-
-/**
- * Envía email de recordatorio de cita (24h antes)
- * Llamado por el cron de recordatorios.service.js
- */
-exports.enviarRecordatorioCita = async ({ pacienteNombre, pacienteEmail, doctorNombre, fechaHora, motivo }) => {
-  const fecha = new Date(fechaHora).toLocaleDateString('es-CL', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  });
-  const hora = new Date(fechaHora).toLocaleTimeString('es-CL', {
-    hour: '2-digit', minute: '2-digit'
-  });
-
-  await enviar({
-    to:      pacienteEmail,
-    subject: '🏥 Recordatorio de cita médica',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2563eb;">Recordatorio de cita médica</h2>
-        <p>Estimado/a <strong>${pacienteNombre}</strong>,</p>
-        <p>Le recordamos que tiene una cita médica programada para mañana:</p>
-        <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
-          <p><strong>👨‍⚕️ Doctor:</strong> ${doctorNombre}</p>
-          <p><strong>📅 Fecha:</strong> ${fecha}</p>
-          <p><strong>🕐 Hora:</strong> ${hora}</p>
-          <p><strong>📋 Motivo:</strong> ${motivo}</p>
-        </div>
-        <p>Por favor llegue 10 minutos antes de su cita.</p>
-        <p>Si necesita cancelar, contáctenos con anticipación.</p>
-        <hr/>
-        <p style="color: #6b7280; font-size: 12px;">Medical App — Sistema de citas médicas</p>
-      </div>
-    `
+  await transporter.sendMail({
+    from: REMITENTE, to, subject, html, text,
+    attachments: [{ filename: LOGO_ARCHIVO, content: LOGO, contentType: 'image/png', cid: LOGO_CID }],
   });
 };
 
-/**
- * Envía email cuando se agenda (crea) una cita.
- * Llamado por citas.controller.js al crear la cita.
- */
-exports.enviarCitaAgendada = async ({ pacienteNombre, pacienteEmail, doctorNombre, fechaHora, motivo }) => {
-  const fecha = new Date(fechaHora).toLocaleDateString('es-CL', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+function enviarCita(
+  { pacienteNombre, pacienteEmail, doctorNombre, fechaHora, motivo },
+  { subject, titulo, mensaje, notas },
+) {
+  const instante = new Date(fechaHora);
+  const fecha = instante.toLocaleDateString('es-CL', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
-  const hora = new Date(fechaHora).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+  const hora = instante.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+  const detalles = [['Profesional', doctorNombre], ['Fecha', fecha], ['Hora', hora]];
+  if (motivo) detalles.push(['Motivo', motivo]);
 
-  await enviar({
-    to:      pacienteEmail,
-    subject: '📅 Cita médica agendada',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2563eb;">Cita agendada</h2>
-        <p>Estimado/a <strong>${pacienteNombre}</strong>,</p>
-        <p>Su cita médica ha sido agendada con éxito. Estos son los detalles:</p>
-        <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
-          <p><strong>👨‍⚕️ Doctor:</strong> ${doctorNombre}</p>
-          <p><strong>📅 Fecha:</strong> ${fecha}</p>
-          <p><strong>🕐 Hora:</strong> ${hora}</p>
-          <p><strong>📋 Motivo:</strong> ${motivo}</p>
-        </div>
-        <p>Le avisaremos cuando su cita sea confirmada. Por favor llegue 10 minutos antes.</p>
-        <hr/>
-        <p style="color: #6b7280; font-size: 12px;">Medical App — Sistema de citas médicas</p>
-      </div>
-    `
+  return enviar({
+    to: pacienteEmail,
+    subject,
+    ...renderizarEmail({ titulo, saludo: `Hola, ${pacienteNombre}.`, mensaje, detalles, notas }),
   });
-};
+}
 
-/**
- * Envía email cuando se sube un nuevo resultado médico del paciente.
- * Llamado por resultados.controller.js al crear un resultado.
- */
-exports.enviarNuevoResultado = async ({ pacienteNombre, pacienteEmail, tipo, nombre, doctorNombre }) => {
-  await enviar({
-    to:      pacienteEmail,
-    subject: '🧪 Nuevo resultado médico disponible',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2563eb;">Tienes un nuevo resultado</h2>
-        <p>Estimado/a <strong>${pacienteNombre}</strong>,</p>
-        <p>Se ha cargado un nuevo resultado médico en tu ficha:</p>
-        <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
-          <p><strong>🧪 Examen:</strong> ${nombre}</p>
-          <p><strong>📂 Tipo:</strong> ${tipo}</p>
-          <p><strong>👨‍⚕️ Profesional:</strong> ${doctorNombre}</p>
-        </div>
-        <p>Puedes consultarlo y descargarlo desde tu portal, en la sección <strong>Mis resultados</strong>.</p>
-        <hr/>
-        <p style="color: #6b7280; font-size: 12px;">Medical App — Sistema de citas médicas</p>
-      </div>
-    `
-  });
-};
+exports.enviarRecordatorioCita = datos => enviarCita(datos, {
+  subject: '🏥 Recordatorio de cita médica',
+  titulo: 'Recordatorio de cita médica',
+  mensaje: 'Te recordamos que tienes una cita programada para mañana.',
+  notas: ['Llega 10 minutos antes de la cita.', 'Si necesitas cancelar, contáctanos con anticipación.'],
+});
 
-/**
- * Envía email cuando una cita se cancela.
- * Llamado por citas.controller.js al cambiar el estado a 'cancelada'.
- */
-exports.enviarCancelacionCita = async ({ pacienteNombre, pacienteEmail, doctorNombre, fechaHora, motivoCancelacion }) => {
-  const fecha = new Date(fechaHora).toLocaleDateString('es-CL', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  });
-  const hora = new Date(fechaHora).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+exports.enviarCitaAgendada = datos => enviarCita(datos, {
+  subject: '📅 Cita médica agendada',
+  titulo: 'Cita agendada',
+  mensaje: 'Agendamos tu cita médica con los siguientes datos.',
+  notas: ['Te avisaremos cuando la cita esté confirmada.', 'Llega 10 minutos antes de la cita.'],
+});
 
-  await enviar({
-    to:      pacienteEmail,
+exports.enviarConfirmacionCita = datos => enviarCita(datos, {
+  subject: '✅ Cita médica confirmada',
+  titulo: 'Cita confirmada',
+  mensaje: 'Confirmamos tu cita médica.',
+  notas: ['Llega 10 minutos antes de la cita.'],
+});
+
+exports.enviarCancelacionCita = ({ motivoCancelacion, ...datos }) => enviarCita(
+  { ...datos, motivo: motivoCancelacion },
+  {
     subject: '❌ Cita médica cancelada',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #dc2626;">Cita cancelada</h2>
-        <p>Estimado/a <strong>${pacienteNombre}</strong>,</p>
-        <p>Le informamos que su cita médica ha sido cancelada:</p>
-        <div style="background: #fef2f2; padding: 16px; border-radius: 8px; margin: 16px 0;">
-          <p><strong>👨‍⚕️ Doctor:</strong> ${doctorNombre}</p>
-          <p><strong>📅 Fecha:</strong> ${fecha}</p>
-          <p><strong>🕐 Hora:</strong> ${hora}</p>
-          ${motivoCancelacion ? `<p><strong>📝 Motivo:</strong> ${motivoCancelacion}</p>` : ''}
-        </div>
-        <p>Si lo desea, puede agendar una nueva cita cuando guste.</p>
-        <hr/>
-        <p style="color: #6b7280; font-size: 12px;">Medical App — Sistema de citas médicas</p>
-      </div>
-    `
-  });
-};
+    titulo: 'Cita cancelada',
+    mensaje: 'Tu cita médica fue cancelada.',
+    notas: ['Puedes agendar una nueva cita desde el portal.'],
+  },
+);
 
-/**
- * Envía email de confirmación cuando una cita cambia a estado 'confirmada'
- * Llamado por citas.controller.js al cambiar el estado
- */
-exports.enviarConfirmacionCita = async ({ pacienteNombre, pacienteEmail, doctorNombre, fechaHora, motivo }) => {
-  const fecha = new Date(fechaHora).toLocaleDateString('es-CL', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  });
-  const hora = new Date(fechaHora).toLocaleTimeString('es-CL', {
-    hour: '2-digit', minute: '2-digit'
-  });
+exports.enviarNuevoResultado = ({ pacienteNombre, pacienteEmail, tipo, nombre, doctorNombre }) => enviar({
+  to: pacienteEmail,
+  subject: '🧪 Nuevo resultado médico disponible',
+  ...renderizarEmail({
+    titulo: 'Nuevo resultado médico',
+    saludo: `Hola, ${pacienteNombre}.`,
+    mensaje: 'Hay un nuevo resultado médico disponible en tu ficha.',
+    detalles: [['Examen', nombre], ['Tipo', tipo], ['Profesional', doctorNombre]],
+    notas: ['Puedes consultarlo y descargarlo desde la sección «Mis resultados» del portal.'],
+  }),
+});
 
-  await enviar({
-    to:      pacienteEmail,
-    subject: '✅ Cita médica confirmada',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #16a34a;">Cita confirmada</h2>
-        <p>Estimado/a <strong>${pacienteNombre}</strong>,</p>
-        <p>Su cita médica ha sido confirmada exitosamente:</p>
-        <div style="background: #f0fdf4; padding: 16px; border-radius: 8px; margin: 16px 0;">
-          <p><strong>👨‍⚕️ Doctor:</strong> ${doctorNombre}</p>
-          <p><strong>📅 Fecha:</strong> ${fecha}</p>
-          <p><strong>🕐 Hora:</strong> ${hora}</p>
-          <p><strong>📋 Motivo:</strong> ${motivo}</p>
-        </div>
-        <p>Por favor llegue 10 minutos antes de su cita.</p>
-        <p>Si necesita cancelar, contáctenos con anticipación.</p>
-        <hr/>
-        <p style="color: #6b7280; font-size: 12px;">Medical App — Sistema de citas médicas</p>
-      </div>
-    `
-  });
-};
+exports.enviarVerificacionRegistro = ({ email, codigo }) => enviar({
+  to: email,
+  subject: 'Verifica tu correo en Medical',
+  ...renderizarEmail({
+    titulo: 'Verifica tu correo',
+    mensaje: 'Ingresa este código de seis dígitos en el formulario de registro de Medical.',
+    codigo,
+    notas: ['El código vence en 15 minutos.'],
+  }),
+});

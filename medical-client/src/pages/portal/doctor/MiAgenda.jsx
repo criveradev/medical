@@ -107,7 +107,7 @@ function Agenda({ doctorId }) {
 
   return (
     <>
-      <div className="mb-4 flex items-center gap-2">
+      <div className="portal-filtros mb-4 flex flex-wrap items-center gap-3">
         <label className="text-sm text-slate-600">Día:</label>
         <input type="date" className={inputCls + ' w-auto'} value={fecha} onChange={(e) => setFecha(e.target.value)} />
       </div>

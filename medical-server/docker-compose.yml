@@ -12,7 +12,7 @@ services:
       API_URL: http://localhost:${PORT:-3000}
       APP_TIME_ZONE: ${APP_TIME_ZONE:-America/Santiago}
       CLIENT_URL: ${CLIENT_URL:-http://localhost:4200},http://frontend:4200
-      MONGO_URI: mongodb://mongo:27017/medical_db
+      MONGO_URI: mongodb://mongo:27017/medical_db?replicaSet=medical
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ""
@@ -90,10 +90,21 @@ services:
 
   mongo:
     image: mongo:7
+    command: ["mongod", "--replSet", "medical", "--bind_ip_all"]
     volumes:
       - mongo_data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - |
+          if (!db.hello().isWritablePrimary) {
+            try { rs.initiate({_id: 'medical', members: [{_id: 0, host: 'mongo:27017'}]}); }
+            catch (error) { if (error.codeName !== 'AlreadyInitialized') throw error; }
+            quit(1);
+          }
       interval: 5s
       timeout: 5s
       retries: 10
@@ -117,7 +128,7 @@ services:
     init: true
     environment:
       NODE_ENV: test
-      MONGO_TEST_URI: mongodb://mongo-test:27017/medical_test
+      MONGO_TEST_URI: mongodb://mongo-test:27017/medical_test?replicaSet=medical-test
       JWT_SECRET: test-access-secret-with-at-least-32-characters
       JWT_REFRESH_SECRET: test-refresh-secret-with-at-least-32-characters
       MFA_ENCRYPTION_KEY: test-mfa-encryption-key-with-at-least-32-characters
@@ -130,10 +141,21 @@ services:
   mongo-test:
     profiles: ["test"]
     image: mongo:7
+    command: ["mongod", "--replSet", "medical-test", "--bind_ip_all"]
     tmpfs:
       - /data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - |
+          if (!db.hello().isWritablePrimary) {
+            try { rs.initiate({_id: 'medical-test', members: [{_id: 0, host: 'mongo-test:27017'}]}); }
+            catch (error) { if (error.codeName !== 'AlreadyInitialized') throw error; }
+            quit(1);
+          }
       interval: 2s
       timeout: 3s
       retries: 15

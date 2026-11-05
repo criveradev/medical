@@ -188,7 +188,7 @@ export default function Perfil() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-6">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4 rounded-2xl bg-brand-50 p-4">
             <label className="relative cursor-pointer" title="Cambiar foto">
               {fotoActual ? (
                 <img src={fotoActual} alt="" className="h-16 w-16 rounded-full object-cover" />
@@ -215,7 +215,7 @@ export default function Perfil() {
         </Card>
 
         <Card className="p-6">
-          <h2 className="font-semibold text-slate-900">Cambiar contraseña</h2>
+          <h2 className="border-b border-brand-100 pb-3 text-lg font-bold text-brand-900">Cambiar contraseña</h2>
           <p className="mt-1 text-sm text-slate-500">Por seguridad, deberás iniciar sesión de nuevo al cambiarla.</p>
 
           {ok ? (
@@ -242,7 +242,7 @@ export default function Perfil() {
         </Card>
 
         <Card className="p-6 lg:col-span-2">
-          <h2 className="font-semibold text-slate-900">Autenticación en dos pasos</h2>
+          <h2 className="border-b border-brand-100 pb-3 text-lg font-bold text-brand-900">Autenticación en dos pasos</h2>
           <p className="mt-1 text-sm text-slate-500">
             Protege la cuenta con una aplicación compatible con códigos TOTP.
           </p>

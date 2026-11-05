@@ -4,24 +4,35 @@
 // Incluye: verificación de disponibilidad, notificaciones Socket.io y email
 // ═══════════════════════════════════════════════════════════════
 
-const Cita     = require('../models/Cita');
-const Doctor   = require('../models/Doctor');
-const Paciente = require('../models/Paciente');
-const { enviarConfirmacionCita, enviarCancelacionCita, enviarCitaAgendada } = require('../services/email.service');
-const notificaciones = require('../services/notificaciones.service');
-const logger         = require('../config/logger');
-const { diaSemana, instanteLocal, rangoDia } = require('../lib/fecha');
+const Cita = require("../models/Cita");
+const Doctor = require("../models/Doctor");
+const Paciente = require("../models/Paciente");
+const {
+  enviarConfirmacionCita,
+  enviarCancelacionCita,
+  enviarCitaAgendada
+} = require("../services/email.service");
+const notificaciones = require("../services/notificaciones.service");
+const logger = require("../config/logger");
+const { diaSemana, enZona, instanteLocal, rangoDia } = require("../lib/fecha");
 const {
   ESTADOS_SIN_RESERVA,
   existeSolape,
   httpError,
-  validarHorarioDoctor,
-} = require('../services/citas.service');
-const distributedLock = require('../services/distributed-lock.service');
+  validarHorarioDoctor
+} = require("../services/citas.service");
+const distributedLock = require("../services/distributed-lock.service");
 
 const withDoctorScheduleLock = async (doctorId, operation) => {
-  const lock = await distributedLock.acquire(`agenda-doctor:${doctorId}`, 15_000);
-  if (!lock) throw httpError(409, 'La agenda está siendo actualizada; intenta nuevamente');
+  const lock = await distributedLock.acquire(
+    `agenda-doctor:${doctorId}`,
+    15_000
+  );
+  if (!lock)
+    throw httpError(
+      409,
+      "La agenda está siendo actualizada; intenta nuevamente"
+    );
   try {
     return await operation();
   } finally {
@@ -31,11 +42,17 @@ const withDoctorScheduleLock = async (doctorId, operation) => {
 
 // Populate anidado reutilizable para citas
 const populateCita = [
-  { path: 'pacienteId', populate: { path: 'usuarioId', select: 'nombre apellido email telefono' } },
-  { path: 'doctorId',   populate: [
-    { path: 'usuarioId',     select: 'nombre apellido' },
-    { path: 'especialidadId', select: 'nombre' }
-  ]}
+  {
+    path: "pacienteId",
+    populate: { path: "usuarioId", select: "nombre apellido email telefono" }
+  },
+  {
+    path: "doctorId",
+    populate: [
+      { path: "usuarioId", select: "nombre apellido" },
+      { path: "especialidadId", select: "nombre" }
+    ]
+  }
 ];
 
 /**
@@ -49,14 +66,14 @@ const populateCita = [
  */
 exports.listar = async (req, res, next) => {
   try {
-    const page  = parseInt(req.query.page)  || 1;
+    const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const skip  = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
     const { estado, doctorId, fecha } = req.query;
     const filtro = {};
 
-    if (estado)   filtro.estado   = estado;
+    if (estado) filtro.estado = estado;
     if (doctorId) filtro.doctorId = doctorId;
     if (req.doctorScope) filtro.doctorId = req.doctorScope;
     // Un paciente solo ve sus propias citas
@@ -69,9 +86,16 @@ exports.listar = async (req, res, next) => {
     const total = await Cita.countDocuments(filtro);
     const citas = await Cita.find(filtro)
       .populate(populateCita)
-      .skip(skip).limit(limit).sort({ fechaHora: 1 });
+      .skip(skip)
+      .limit(limit)
+      .sort({ fechaHora: 1 });
 
-    res.json({ total, pagina: page, totalPaginas: Math.ceil(total / limit), citas });
+    res.json({
+      total,
+      pagina: page,
+      totalPaginas: Math.ceil(total / limit),
+      citas
+    });
   } catch (error) {
     next(error);
   }
@@ -89,19 +113,23 @@ exports.listar = async (req, res, next) => {
 exports.obtener = async (req, res, next) => {
   try {
     const cita = await Cita.findById(req.params.id).populate(populateCita);
-    if (!cita) return res.status(404).json({ mensaje: 'Cita no encontrada' });
+    if (!cita) return res.status(404).json({ mensaje: "Cita no encontrada" });
 
     // Un paciente solo puede ver su propia cita
     if (req.pacienteScope) {
       const pid = String(cita.pacienteId?._id || cita.pacienteId);
       if (pid !== req.pacienteScope)
-        return res.status(403).json({ mensaje: 'No autorizado sobre este recurso' });
+        return res
+          .status(403)
+          .json({ mensaje: "No autorizado sobre este recurso" });
     }
 
     if (req.doctorScope) {
       const did = String(cita.doctorId?._id || cita.doctorId);
       if (did !== req.doctorScope)
-        return res.status(403).json({ mensaje: 'No autorizado sobre este recurso' });
+        return res
+          .status(403)
+          .json({ mensaje: "No autorizado sobre este recurso" });
     }
 
     res.json({ cita });
@@ -122,23 +150,61 @@ exports.obtener = async (req, res, next) => {
  */
 exports.crear = async (req, res, next) => {
   try {
-    const { pacienteId, doctorId, fechaHora, motivo, tipo, observaciones } = req.body;
+    const { pacienteId, doctorId, fechaHora, motivo, tipo, observaciones } =
+      req.body;
 
-    const doctor   = await Doctor.findOne({ _id: doctorId, activo: true }).populate('usuarioId', 'nombre apellido');
-    if (!doctor)   return res.status(404).json({ mensaje: 'Doctor no encontrado' });
-    const paciente = await Paciente.findOne({ _id: pacienteId, activo: true }).populate('usuarioId', 'nombre apellido email');
-    if (!paciente) return res.status(404).json({ mensaje: 'Paciente no encontrado' });
+    const doctor = await Doctor.findOne({
+      _id: { $eq: doctorId },
+      activo: true
+    }).populate("usuarioId", "nombre apellido");
+    if (!doctor)
+      return res.status(404).json({ mensaje: "Doctor no encontrado" });
+    const paciente = await Paciente.findOne({
+      _id: { $eq: pacienteId },
+      activo: true
+    }).populate("usuarioId", "nombre apellido email");
+    if (!paciente)
+      return res.status(404).json({ mensaje: "Paciente no encontrado" });
 
     const fechaCita = new Date(fechaHora);
-    const duracion  = doctor.duracionConsulta || 30;
+    const duracion = doctor.duracionConsulta || 30;
     const cita = await withDoctorScheduleLock(doctorId, async () => {
       validarHorarioDoctor(doctor, fechaCita);
-      const haySolape = await existeSolape({ doctorId, fechaHora: fechaCita, duracion });
-      if (haySolape) throw httpError(409, 'El doctor ya tiene una cita en ese horario');
+      if (req.pacienteScope) {
+        const fechaLocal = enZona(fechaCita);
+        const horario = doctor.horarios.find(
+          (h) => h.dia === diaSemana(fechaLocal.toISODate()) && h.activo
+        );
+        const inicio = instanteLocal(
+          fechaLocal.toISODate(),
+          horario.horaInicio
+        );
+        if (
+          (fechaLocal.toMillis() - inicio.toMillis()) % (duracion * 60_000) !==
+          0
+        ) {
+          throw httpError(400, "Selecciona un cupo de la agenda");
+        }
+      }
+      const haySolape = await existeSolape({
+        doctorId,
+        fechaHora: fechaCita,
+        duracion
+      });
+      if (haySolape)
+        throw httpError(409, "El doctor ya tiene una cita en ese horario");
       try {
-        return await Cita.create({ pacienteId, doctorId, fechaHora, motivo, tipo, observaciones });
+        return await Cita.create({
+          pacienteId,
+          doctorId,
+          fechaHora,
+          motivo,
+          tipo,
+          observaciones
+        });
       } catch (error) {
-        if (error.code === 11000) throw httpError(409, 'El doctor ya tiene una cita en ese horario');
+        if (error.code === 11000)
+          throw httpError(409, "El doctor ya tiene una cita en ese horario");
         throw error;
       }
     });
@@ -151,17 +217,21 @@ exports.crear = async (req, res, next) => {
       if (paciente.usuarioId?.email) {
         await enviarCitaAgendada({
           pacienteNombre: `${paciente.usuarioId.nombre} ${paciente.usuarioId.apellido}`,
-          pacienteEmail:  paciente.usuarioId.email,
-          doctorNombre:   doctor.usuarioId ? `Dr. ${doctor.usuarioId.nombre} ${doctor.usuarioId.apellido}` : 'Profesional',
+          pacienteEmail: paciente.usuarioId.email,
+          doctorNombre: doctor.usuarioId
+            ? `Dr. ${doctor.usuarioId.nombre} ${doctor.usuarioId.apellido}`
+            : "Profesional",
           fechaHora,
           motivo
         });
       }
     } catch (emailError) {
-      logger.error(`Error enviando email de cita agendada: ${emailError.message}`);
+      logger.error(
+        `Error enviando email de cita agendada: ${emailError.message}`
+      );
     }
 
-    res.status(201).json({ mensaje: 'Cita creada', cita });
+    res.status(201).json({ mensaje: "Cita creada", cita });
   } catch (error) {
     next(error);
   }
@@ -179,21 +249,25 @@ exports.actualizar = async (req, res, next) => {
   try {
     const { fechaHora, motivo, tipo, observaciones } = req.body;
     const cita = await Cita.findById(req.params.id);
-    if (!cita) return res.status(404).json({ mensaje: 'Cita no encontrada' });
+    if (!cita) return res.status(404).json({ mensaje: "Cita no encontrada" });
 
     const applyChanges = async () => {
       if (fechaHora) {
-        const doctor = await Doctor.findOne({ _id: cita.doctorId, activo: true });
-        if (!doctor) throw httpError(404, 'Doctor no encontrado');
+        const doctor = await Doctor.findOne({
+          _id: cita.doctorId,
+          activo: true
+        });
+        if (!doctor) throw httpError(404, "Doctor no encontrado");
         const nuevaFecha = new Date(fechaHora);
         validarHorarioDoctor(doctor, nuevaFecha);
         const ocupado = await existeSolape({
           doctorId: cita.doctorId,
           fechaHora: nuevaFecha,
           duracion: doctor.duracionConsulta || 30,
-          excluirCitaId: cita._id,
+          excluirCitaId: cita._id
         });
-        if (ocupado) throw httpError(409, 'El doctor ya tiene una cita en ese horario');
+        if (ocupado)
+          throw httpError(409, "El doctor ya tiene una cita en ese horario");
         cita.fechaHora = nuevaFecha;
         // Una reprogramación necesita un nuevo recordatorio para la nueva fecha.
         cita.recordatorioClaimedAt = null;
@@ -208,7 +282,7 @@ exports.actualizar = async (req, res, next) => {
 
     if (fechaHora) await withDoctorScheduleLock(cita.doctorId, applyChanges);
     else await applyChanges();
-    res.json({ mensaje: 'Cita actualizada', cita });
+    res.json({ mensaje: "Cita actualizada", cita });
   } catch (error) {
     next(error);
   }
@@ -229,59 +303,74 @@ exports.cambiarEstado = async (req, res, next) => {
     const { estado, motivoCancelacion, canceladoPor } = req.body;
 
     const existente = await Cita.findById(req.params.id);
-    if (!existente) return res.status(404).json({ mensaje: 'Cita no encontrada' });
+    if (!existente)
+      return res.status(404).json({ mensaje: "Cita no encontrada" });
 
     const cita = await withDoctorScheduleLock(existente.doctorId, async () => {
       const actual = await Cita.findById(req.params.id);
-      if (!actual) throw httpError(404, 'Cita no encontrada');
-      if (!ESTADOS_SIN_RESERVA.includes(estado) && ESTADOS_SIN_RESERVA.includes(actual.estado)) {
+      if (!actual) throw httpError(404, "Cita no encontrada");
+      if (
+        !ESTADOS_SIN_RESERVA.includes(estado) &&
+        ESTADOS_SIN_RESERVA.includes(actual.estado)
+      ) {
         const doctor = await Doctor.findById(actual.doctorId);
-        const ocupado = doctor && await existeSolape({
-          doctorId: actual.doctorId,
-          fechaHora: actual.fechaHora,
-          duracion: doctor.duracionConsulta || 30,
-          excluirCitaId: actual._id,
-        });
-        if (ocupado) throw httpError(409, 'El horario fue ocupado por otra cita');
+        const ocupado =
+          doctor &&
+          (await existeSolape({
+            doctorId: actual.doctorId,
+            fechaHora: actual.fechaHora,
+            duracion: doctor.duracionConsulta || 30,
+            excluirCitaId: actual._id
+          }));
+        if (ocupado)
+          throw httpError(409, "El horario fue ocupado por otra cita");
       }
-      return Cita.findByIdAndUpdate(
-        req.params.id, { estado, motivoCancelacion, canceladoPor }, { returnDocument: 'after', runValidators: true }
-      ).populate(populateCita);
+      actual.estado = estado;
+      if (motivoCancelacion !== undefined) actual.motivoCancelacion = motivoCancelacion;
+      if (canceladoPor !== undefined) actual.canceladoPor = canceladoPor;
+      await actual.save({ validateModifiedOnly: true });
+      return actual.populate(populateCita);
     });
 
-    if (!cita) return res.status(404).json({ mensaje: 'Cita no encontrada' });
+    if (!cita) return res.status(404).json({ mensaje: "Cita no encontrada" });
 
     // Enviar email de confirmación al cambiar a estado 'confirmada'
-    if (estado === 'confirmada') {
+    if (estado === "confirmada") {
       try {
         const pacienteUser = cita.pacienteId.usuarioId;
-        const doctorUser   = cita.doctorId.usuarioId;
+        const doctorUser = cita.doctorId.usuarioId;
         await enviarConfirmacionCita({
           pacienteNombre: `${pacienteUser.nombre} ${pacienteUser.apellido}`,
-          pacienteEmail:  pacienteUser.email,
-          doctorNombre:   `Dr. ${doctorUser.nombre} ${doctorUser.apellido}`,
-          fechaHora:      cita.fechaHora,
-          motivo:         cita.motivo
+          pacienteEmail: pacienteUser.email,
+          doctorNombre: `Dr. ${doctorUser.nombre} ${doctorUser.apellido}`,
+          fechaHora: cita.fechaHora,
+          motivo: cita.motivo
         });
       } catch (emailError) {
-        logger.error(`Error enviando email de confirmación: ${emailError.message}`);
+        logger.error(
+          `Error enviando email de confirmación: ${emailError.message}`
+        );
       }
     }
 
     // Enviar email al paciente cuando la cita se cancela
-    if (estado === 'cancelada') {
+    if (estado === "cancelada") {
       try {
         const pacienteUser = cita.pacienteId.usuarioId;
-        const doctorUser   = cita.doctorId?.usuarioId;
+        const doctorUser = cita.doctorId?.usuarioId;
         await enviarCancelacionCita({
-          pacienteNombre:    `${pacienteUser.nombre} ${pacienteUser.apellido}`,
-          pacienteEmail:     pacienteUser.email,
-          doctorNombre:      doctorUser ? `Dr. ${doctorUser.nombre} ${doctorUser.apellido}` : 'Profesional',
-          fechaHora:         cita.fechaHora,
+          pacienteNombre: `${pacienteUser.nombre} ${pacienteUser.apellido}`,
+          pacienteEmail: pacienteUser.email,
+          doctorNombre: doctorUser
+            ? `Dr. ${doctorUser.nombre} ${doctorUser.apellido}`
+            : "Profesional",
+          fechaHora: cita.fechaHora,
           motivoCancelacion: cita.motivoCancelacion
         });
       } catch (emailError) {
-        logger.error(`Error enviando email de cancelación: ${emailError.message}`);
+        logger.error(
+          `Error enviando email de cancelación: ${emailError.message}`
+        );
       }
     }
 
@@ -306,24 +395,41 @@ exports.cambiarEstado = async (req, res, next) => {
 exports.disponibilidad = async (req, res, next) => {
   try {
     const { fecha } = req.query;
-    if (!fecha) return res.status(400).json({ mensaje: 'La fecha es requerida' });
+    if (!fecha)
+      return res.status(400).json({ mensaje: "La fecha es requerida" });
 
-    const doctor = await Doctor.findById(req.params.doctorId);
-    if (!doctor) return res.status(404).json({ mensaje: 'Doctor no encontrado' });
+    const agendaPublica = res.locals.agendaPublica;
+    const doctor = await Doctor.findOne({
+      _id: { $eq: req.params.doctorId },
+      ...(agendaPublica ? { activo: true } : {})
+    });
+    if (!doctor)
+      return res.status(404).json({ mensaje: "Doctor no encontrado" });
 
     const nombreDia = diaSemana(fecha);
-    const horario   = doctor.horarios.find(h => h.dia === nombreDia && h.activo);
+    const horario = doctor.horarios.find(
+      (h) => h.dia === nombreDia && h.activo
+    );
 
     if (!horario)
-      return res.json({ disponible: false, mensaje: `El doctor no atiende los ${nombreDia}` });
+      return res.json({
+        disponible: false,
+        mensaje: `El doctor no atiende los ${nombreDia}`
+      });
 
-    const duracion      = doctor.duracionConsulta || 30;
-    const [hIni, mIni] = horario.horaInicio.split(':').map(Number);
-    const [hFin, mFin] = horario.horaFin.split(':').map(Number);
+    const duracion = doctor.duracionConsulta || 30;
+    const [hIni, mIni] = horario.horaInicio.split(":").map(Number);
+    const [hFin, mFin] = horario.horaFin.split(":").map(Number);
 
     const slots = [];
-    let current = instanteLocal(fecha, `${String(hIni).padStart(2, '0')}:${String(mIni).padStart(2, '0')}`);
-    const finHorario = instanteLocal(fecha, `${String(hFin).padStart(2, '0')}:${String(mFin).padStart(2, '0')}`);
+    let current = instanteLocal(
+      fecha,
+      `${String(hIni).padStart(2, "0")}:${String(mIni).padStart(2, "0")}`
+    );
+    const finHorario = instanteLocal(
+      fecha,
+      `${String(hFin).padStart(2, "0")}:${String(mFin).padStart(2, "0")}`
+    );
     while (current.plus({ minutes: duracion }) <= finHorario) {
       slots.push(current);
       current = current.plus({ minutes: duracion });
@@ -331,20 +437,30 @@ exports.disponibilidad = async (req, res, next) => {
 
     const { inicio, fin: finDia } = rangoDia(fecha);
 
+    const duracionMs = duracion * 60_000;
     const citasDelDia = await Cita.find({
-      doctorId:  req.params.doctorId,
-      estado:    { $nin: ['cancelada', 'no_asistio'] },
-      fechaHora: { $gte: inicio, $lte: finDia }
-    });
+      doctorId: { $eq: doctor._id },
+      estado: { $nin: ["cancelada", "no_asistio"] },
+      fechaHora: { $gte: new Date(inicio.getTime() - duracionMs), $lte: finDia }
+    }).select("fechaHora");
 
-    const ocupados    = citasDelDia.map(c => new Date(c.fechaHora).getTime());
-    const disponibles = slots.map(slot => ({
-      hora:       slot.toFormat('HH:mm'),
-      fechaHora:  slot.toUTC().toJSDate(),
-      disponible: !ocupados.includes(slot.toMillis())
+    const ocupados = citasDelDia.map((c) => new Date(c.fechaHora).getTime());
+    const disponibles = slots.map((slot) => ({
+      hora: slot.toFormat("HH:mm"),
+      fechaHora: slot.toUTC().toJSDate(),
+      disponible: !ocupados.some(
+        (inicioCita) => Math.abs(inicioCita - slot.toMillis()) < duracionMs
+      )
     }));
 
-    res.json({ fecha, doctorId: req.params.doctorId, slots: disponibles });
+    const cupos = agendaPublica
+      ? disponibles
+          .filter(
+            (slot) => slot.disponible && slot.fechaHora.getTime() > Date.now()
+          )
+          .map(({ hora, fechaHora }) => ({ hora, fechaHora }))
+      : disponibles;
+    res.json({ fecha, doctorId: req.params.doctorId, slots: cupos });
   } catch (error) {
     next(error);
   }

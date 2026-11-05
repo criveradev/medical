@@ -265,7 +265,7 @@ export default function Citas() {
         </Btn>
       </PageHeader>
 
-      <div className="mb-4 flex flex-wrap items-end gap-2">
+      <div className="portal-filtros mb-4 flex flex-wrap items-end gap-3">
         <div>
           <label className="mb-1 block text-xs text-slate-500">Estado</label>
           <select className={inputCls + ' w-auto'} value={fEstado} onChange={(e) => filtrar(setFEstado)(e.target.value)}>
@@ -297,8 +297,8 @@ export default function Citas() {
         <Card><Empty>{hayFiltros ? 'No hay citas con esos filtros.' : 'No hay citas agendadas.'}</Empty></Card>
       ) : (
         <>
-        <Card className="overflow-hidden">
-          <table className="w-full text-sm">
+        <Card className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-5 py-3 font-medium">Fecha</th>

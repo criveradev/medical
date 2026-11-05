@@ -1,46 +1,47 @@
-import { CalendarDays, Stethoscope } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { CalendarDays, CalendarPlus } from 'lucide-react';
 import { useFetch } from '../../../hooks/useFetch';
-import { PageHeader, Card, Spinner, ErrorMsg, Empty, Badge } from '../../../components/ui';
+import { Spinner, ErrorMsg, Badge } from '../../../components/ui';
+import { EncabezadoPaciente, FichaPaciente, VacioPaciente } from '../../../components/portal/PacienteUI';
 import { estadoColor, labelEstado, fmtFechaHora } from '../../../lib/format';
 
-/**
- * Página del paciente con sus propias citas: listado, estado y cancelación.
- * @returns {JSX.Element}
- */
 export default function MisCitas() {
   const { data, loading, error } = useFetch('/citas?limit=50');
   const citas = data?.citas || [];
 
   return (
     <>
-      <PageHeader title="Mis citas" subtitle="Tus próximas y pasadas atenciones." />
+      <EncabezadoPaciente titulo="Mis citas" descripcion="Consulta tus próximas atenciones, su estado y las citas anteriores." icono={CalendarDays}>
+        <Link to="/agendar" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-brand-900 transition hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
+          <CalendarPlus size={18} aria-hidden="true" /> Agendar cita
+        </Link>
+      </EncabezadoPaciente>
       {loading ? (
-        <Spinner />
+        <Spinner label="Cargando citas…" />
       ) : error ? (
         <ErrorMsg>{error}</ErrorMsg>
       ) : citas.length === 0 ? (
-        <Card><Empty>Aún no tienes citas agendadas.</Empty></Card>
+        <VacioPaciente icono={CalendarDays} titulo="Aún no tienes citas agendadas">
+          Usa «Agendar cita» para elegir un profesional y consultar sus horarios.
+        </VacioPaciente>
       ) : (
-        <div className="space-y-3">
-          {citas.map((c) => (
-            <Card key={c._id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                  <CalendarDays size={20} />
-                </span>
-                <div>
-                  <p className="font-medium text-slate-900">{fmtFechaHora(c.fechaHora)}</p>
-                  <p className="flex items-center gap-1.5 text-sm text-slate-500">
-                    <Stethoscope size={14} />
-                    {c.doctorId?.usuarioId ? `Dr(a). ${c.doctorId.usuarioId.nombre} ${c.doctorId.usuarioId.apellido}` : 'Por asignar'}
-                    {c.doctorId?.especialidadId?.nombre ? ` · ${c.doctorId.especialidadId.nombre}` : ''}
+        <div className="grid gap-4 md:grid-cols-2">
+          {citas.map(cita => {
+            const usuario = cita.doctorId?.usuarioId;
+            const profesional = usuario ? `Dr(a). ${usuario.nombre} ${usuario.apellido}` : 'Por asignar';
+            const especialidad = cita.doctorId?.especialidadId?.nombre;
+            return (
+              <FichaPaciente key={cita._id} icono={CalendarDays} titulo={fmtFechaHora(cita.fechaHora)}
+                detalle={[profesional, especialidad].filter(Boolean).join(' · ')}
+                etiqueta={<Badge color={estadoColor[cita.estado] || 'slate'}>{labelEstado[cita.estado] || cita.estado}</Badge>}>
+                {cita.motivo && (
+                  <p className="rounded-xl bg-brand-50 px-3.5 py-3 text-sm break-words text-slate-700">
+                    <span className="font-semibold text-brand-900">Motivo</span><br />{cita.motivo}
                   </p>
-                  {c.motivo && <p className="mt-0.5 text-sm text-slate-400">{c.motivo}</p>}
-                </div>
-              </div>
-              <Badge color={estadoColor[c.estado] || 'slate'}>{labelEstado[c.estado] || c.estado}</Badge>
-            </Card>
-          ))}
+                )}
+              </FichaPaciente>
+            );
+          })}
         </div>
       )}
     </>

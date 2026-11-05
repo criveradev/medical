@@ -1,7 +1,8 @@
 import { FlaskConical, Download, FileText } from 'lucide-react';
 import { useMiFicha } from '../../../hooks/useMiFicha';
 import { useFetch } from '../../../hooks/useFetch';
-import { PageHeader, Card, Spinner, ErrorMsg, Empty, Badge } from '../../../components/ui';
+import { Btn, Spinner, ErrorMsg, Badge } from '../../../components/ui';
+import { EncabezadoPaciente, FichaPaciente, VacioPaciente } from '../../../components/portal/PacienteUI';
 import { fmtFecha } from '../../../lib/format';
 import { api } from '../../../lib/api';
 import { useToast } from '../../../context/ToastContext';
@@ -33,38 +34,33 @@ function Lista({ pacienteId }) {
       toast.error(e.message);
     }
   }
-  if (loading) return <Spinner />;
+  if (loading) return <Spinner label="Cargando resultados…" />;
   if (error) return <ErrorMsg>{error}</ErrorMsg>;
   const items = data?.resultados || [];
-  if (!items.length) return <Card><Empty>Aún no tienes resultados disponibles.</Empty></Card>;
+  if (!items.length) return (
+    <VacioPaciente icono={FlaskConical} titulo="Aún no tienes resultados disponibles">
+      Aquí podrás consultar tus exámenes e informes cuando se publiquen en el portal.
+    </VacioPaciente>
+  );
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {items.map((r) => (
-        <Card key={r._id} className="flex flex-col p-5">
-          <div className="flex items-start justify-between gap-2">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-              <FlaskConical size={18} />
-            </span>
-            <Badge color="brand">{tipoLabel[r.tipo] || r.tipo}</Badge>
+    <div className="grid gap-4 md:grid-cols-2">
+      {items.map(r => (
+        <FichaPaciente key={r._id} icono={FlaskConical} titulo={r.nombre}
+          detalle={fmtFecha(r.fecha || r.createdAt)} etiqueta={<Badge color="brand">{tipoLabel[r.tipo] || r.tipo}</Badge>}>
+          {r.descripcion && <p className="rounded-xl bg-brand-50 p-3.5 text-sm break-words text-slate-700">{r.descripcion}</p>}
+          <div className="mt-auto border-t border-brand-100 pt-3">
+            {r.tieneArchivo ? (
+              <Btn type="button" variant="ghost" className="min-h-11" onClick={() => descargar(r._id)}>
+                <Download size={16} aria-hidden="true" /> Descargar
+              </Btn>
+            ) : (
+              <span className="inline-flex items-center gap-2 py-2 text-sm text-slate-600">
+                <FileText size={16} aria-hidden="true" /> Sin archivo adjunto
+              </span>
+            )}
           </div>
-          <h3 className="mt-3 font-medium text-slate-900">{r.nombre}</h3>
-          {r.descripcion && <p className="mt-1 text-sm text-slate-500">{r.descripcion}</p>}
-          <p className="mt-1 text-xs text-slate-400">{fmtFecha(r.fecha || r.createdAt)}</p>
-          {r.tieneArchivo ? (
-            <button
-              type="button"
-              onClick={() => descargar(r._id)}
-              className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              <Download size={16} /> Descargar
-            </button>
-          ) : (
-            <span className="mt-4 inline-flex items-center gap-1.5 text-sm text-slate-400">
-              <FileText size={16} /> Sin archivo adjunto
-            </span>
-          )}
-        </Card>
+        </FichaPaciente>
       ))}
     </div>
   );
@@ -78,13 +74,13 @@ export default function MisResultados() {
   const { pacienteId, loading, error } = useMiFicha();
   return (
     <>
-      <PageHeader title="Mis resultados" subtitle="Exámenes e informes médicos." />
+      <EncabezadoPaciente titulo="Mis resultados" descripcion="Consulta tus exámenes e informes médicos y descarga los archivos disponibles." icono={FlaskConical} />
       {loading ? (
-        <Spinner />
+        <Spinner label="Cargando tu ficha…" />
       ) : error ? (
         <ErrorMsg>{error}</ErrorMsg>
       ) : !pacienteId ? (
-        <Card><Empty>No tienes una ficha de paciente asociada.</Empty></Card>
+        <VacioPaciente icono={FlaskConical} titulo="Tu cuenta aún no tiene una ficha asociada" />
       ) : (
         <Lista pacienteId={pacienteId} />
       )}

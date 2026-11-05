@@ -117,6 +117,18 @@ beforeEach(async () => {
 
 // ─── Tests de Crear Cita ──────────────────────────────────────
 describe('POST /api/v1/citas', () => {
+    test.each(['doctorId', 'pacienteId'])('Rechaza operadores y arreglos en %s sin crear citas', async campo => {
+        const datos = {
+            pacienteId, doctorId, fechaHora: '2030-06-12T13:00:00.000Z',
+            motivo: 'Control general', tipo: 'control',
+        };
+        for (const valor of [{ $ne: null }, [datos[campo]]]) {
+            const res = await request(app).post('/api/v1/citas')
+                .set('Authorization', `Bearer ${token}`).send({ ...datos, [campo]: valor });
+            expect(res.status).toBe(400);
+        }
+        expect(await Cita.countDocuments()).toBe(0);
+    });
     test('✅ Crear cita correctamente', async () => {
         const res = await request(app)
             .post('/api/v1/citas')
@@ -273,6 +285,58 @@ describe('GET /api/v1/citas/disponibilidad/:doctorId', () => {
 
 // ─── Tests de Cambiar Estado ──────────────────────────────────
 describe('PUT /api/v1/citas/:id/estado', () => {
+    test('Rechaza datos de cancelación estructurados en el borde de la API', async () => {
+        const cita = await Cita.create({
+            pacienteId, doctorId, fechaHora: '2030-06-12T13:00:00.000Z',
+            motivo: 'Control general', tipo: 'control',
+        });
+        const res = await request(app).put(`/api/v1/citas/${cita._id}/estado`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ estado: 'cancelada', motivoCancelacion: { $ne: null }, canceladoPor: ['Recepción'] });
+
+        expect(res.status).toBe(400);
+        expect(res.body.errores).toEqual(expect.arrayContaining([
+            expect.objectContaining({ path: 'motivoCancelacion' }),
+            expect.objectContaining({ path: 'canceladoPor' }),
+        ]));
+        expect((await Cita.findById(cita._id)).estado).toBe('pendiente');
+    });
+
+    test('Guarda el texto de cancelación y permite omitir o limpiar los campos opcionales', async () => {
+        const cita = await Cita.create({
+            pacienteId, doctorId, fechaHora: '2030-06-12T13:00:00.000Z',
+            motivo: 'Control general', tipo: 'control',
+        });
+        const url = `/api/v1/citas/${cita._id}/estado`;
+        const cancelada = await request(app).put(url).set('Authorization', `Bearer ${token}`)
+            .send({ estado: 'cancelada', motivoCancelacion: 'Cambio de horario', canceladoPor: 'Recepción' });
+
+        expect(cancelada.status).toBe(200);
+        expect(cancelada.body.cita).toMatchObject({
+            estado: 'cancelada', motivoCancelacion: 'Cambio de horario', canceladoPor: 'Recepción',
+        });
+
+        const reactivada = await request(app).put(url).set('Authorization', `Bearer ${token}`)
+            .send({ estado: 'confirmada', canceladoPor: null });
+
+        expect(reactivada.status).toBe(200);
+        expect(await Cita.findById(cita._id).lean()).toMatchObject({
+            estado: 'confirmada', motivoCancelacion: 'Cambio de horario', canceladoPor: null,
+        });
+    });
+
+    test('Rechaza un estado estructurado sin modificar la cita', async () => {
+        const cita = await Cita.create({
+            pacienteId, doctorId, fechaHora: '2030-06-12T13:00:00.000Z',
+            motivo: 'Control general', tipo: 'control',
+        });
+        for (const estado of [{ $ne: null }, ['confirmada']]) {
+            const res = await request(app).put(`/api/v1/citas/${cita._id}/estado`)
+                .set('Authorization', `Bearer ${token}`).send({ estado });
+            expect(res.status).toBe(400);
+        }
+        expect((await Cita.findById(cita._id)).estado).toBe('pendiente');
+    });
     test('✅ Cambiar estado a confirmada', async () => {
         const cita = await request(app)
             .post('/api/v1/citas')
@@ -312,5 +376,51 @@ describe('PUT /api/v1/citas/:id/estado', () => {
             .send({ estado: 'estado-invalido' });
 
         expect(res.status).toBe(400);
+    });
+});
+
+describe('Agenda pública y reservas de pacientes', () => {
+    const fecha = '2030-06-12';
+    const reserva = {
+        fechaHora: '2030-06-12T13:00:00.000Z',
+        motivo: 'Control general',
+        tipo: 'control',
+    };
+
+    test('Muestra solo cupos libres, incluso cuando la cita existente empieza fuera de un bloque', async () => {
+        await Cita.create({ ...reserva, fechaHora: '2030-06-12T13:15:00.000Z', doctorId, pacienteId });
+
+        const res = await request(app).get(`/api/v1/agenda/cupos/${doctorId}?fecha=${fecha}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.slots).toContainEqual({ hora: '10:00', fechaHora: '2030-06-12T14:00:00.000Z' });
+        const horasLibres = res.body.slots.map(slot => slot.hora);
+        expect(horasLibres).not.toContain('09:00');
+        expect(horasLibres).not.toContain('09:30');
+    });
+
+    test('Exige sesión y vincula la reserva exclusivamente a la ficha del paciente', async () => {
+        const url = '/api/v1/agenda/reservas';
+        const datos = { ...reserva, doctorId };
+        expect((await request(app).post(url).send(datos)).status).toBe(401);
+
+        const login = await request(app).post('/api/v1/auth/login')
+            .send({ email: pacienteData.email, password: '12345678-9' });
+        const authorization = `Bearer ${login.body.accessToken}`;
+
+        const ajena = await request(app).post(url).set('Authorization', authorization)
+            .send({ ...datos, pacienteId: doctorId });
+        expect(ajena.status).toBe(403);
+
+        const fueraDeBloque = await request(app).post(url).set('Authorization', authorization)
+            .send({ ...datos, fechaHora: '2030-06-12T13:05:00.000Z' });
+        expect(fueraDeBloque.status).toBe(400);
+
+        const creada = await request(app).post(url).set('Authorization', authorization).send(datos);
+        expect(creada.status).toBe(201);
+        expect(creada.body.cita.pacienteId).toBe(pacienteId);
+
+        const ocupado = await request(app).post(url).set('Authorization', authorization).send(datos);
+        expect(ocupado.status).toBe(409);
     });
 });
