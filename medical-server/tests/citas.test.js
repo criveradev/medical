@@ -285,6 +285,46 @@ describe('GET /api/v1/citas/disponibilidad/:doctorId', () => {
 
 // ─── Tests de Cambiar Estado ──────────────────────────────────
 describe('PUT /api/v1/citas/:id/estado', () => {
+    test('Rechaza datos de cancelación estructurados en el borde de la API', async () => {
+        const cita = await Cita.create({
+            pacienteId, doctorId, fechaHora: '2030-06-12T13:00:00.000Z',
+            motivo: 'Control general', tipo: 'control',
+        });
+        const res = await request(app).put(`/api/v1/citas/${cita._id}/estado`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ estado: 'cancelada', motivoCancelacion: { $ne: null }, canceladoPor: ['Recepción'] });
+
+        expect(res.status).toBe(400);
+        expect(res.body.errores).toEqual(expect.arrayContaining([
+            expect.objectContaining({ path: 'motivoCancelacion' }),
+            expect.objectContaining({ path: 'canceladoPor' }),
+        ]));
+        expect((await Cita.findById(cita._id)).estado).toBe('pendiente');
+    });
+
+    test('Guarda el texto de cancelación y permite omitir o limpiar los campos opcionales', async () => {
+        const cita = await Cita.create({
+            pacienteId, doctorId, fechaHora: '2030-06-12T13:00:00.000Z',
+            motivo: 'Control general', tipo: 'control',
+        });
+        const url = `/api/v1/citas/${cita._id}/estado`;
+        const cancelada = await request(app).put(url).set('Authorization', `Bearer ${token}`)
+            .send({ estado: 'cancelada', motivoCancelacion: 'Cambio de horario', canceladoPor: 'Recepción' });
+
+        expect(cancelada.status).toBe(200);
+        expect(cancelada.body.cita).toMatchObject({
+            estado: 'cancelada', motivoCancelacion: 'Cambio de horario', canceladoPor: 'Recepción',
+        });
+
+        const reactivada = await request(app).put(url).set('Authorization', `Bearer ${token}`)
+            .send({ estado: 'confirmada', canceladoPor: null });
+
+        expect(reactivada.status).toBe(200);
+        expect(await Cita.findById(cita._id).lean()).toMatchObject({
+            estado: 'confirmada', motivoCancelacion: 'Cambio de horario', canceladoPor: null,
+        });
+    });
+
     test('Rechaza un estado estructurado sin modificar la cita', async () => {
         const cita = await Cita.create({
             pacienteId, doctorId, fechaHora: '2030-06-12T13:00:00.000Z',

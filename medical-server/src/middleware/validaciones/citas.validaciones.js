@@ -29,5 +29,8 @@ exports.validarCambiarEstado = [
     .isString().withMessage('Estado inválido').bail()
     .notEmpty().withMessage('El estado es requerido')
     .isIn(['pendiente', 'confirmada', 'completada', 'cancelada', 'no_asistio'])
-    .withMessage('Estado inválido')
+    .withMessage('Estado inválido'),
+  body(['motivoCancelacion', 'canceladoPor'])
+    .optional({ values: 'null' })
+    .isString().withMessage('El valor debe ser texto')
 ];

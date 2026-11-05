@@ -325,11 +325,11 @@ exports.cambiarEstado = async (req, res, next) => {
         if (ocupado)
           throw httpError(409, "El horario fue ocupado por otra cita");
       }
-      return Cita.findByIdAndUpdate(
-        actual._id,
-        { estado, motivoCancelacion, canceladoPor },
-        { returnDocument: "after", runValidators: true }
-      ).populate(populateCita);
+      actual.estado = estado;
+      if (motivoCancelacion !== undefined) actual.motivoCancelacion = motivoCancelacion;
+      if (canceladoPor !== undefined) actual.canceladoPor = canceladoPor;
+      await actual.save({ validateModifiedOnly: true });
+      return actual.populate(populateCita);
     });
 
     if (!cita) return res.status(404).json({ mensaje: "Cita no encontrada" });
