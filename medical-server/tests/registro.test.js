@@ -1,5 +1,13 @@
 const request = require('supertest');
 const transporter = require('../src/config/email');
+
+// Reproduce el runtime de producción que no expone RegExp.escape.
+const escapeNativo = Object.getOwnPropertyDescriptor(RegExp, 'escape');
+delete RegExp.escape;
+afterAll(() => {
+    if (escapeNativo) Object.defineProperty(RegExp, 'escape', escapeNativo);
+});
+
 const app = require('../src/app');
 const Role = require('../src/models/Role');
 const User = require('../src/models/User');

@@ -1,5 +1,4 @@
 const { createHmac, randomInt, timingSafeEqual } = require('node:crypto');
-const { escape: escapeRegExp } = RegExp;
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Paciente = require('../models/Paciente');
@@ -13,6 +12,10 @@ const huellaCodigo = (email, codigo) => createHmac('sha256', process.env.JWT_SEC
   .update(JSON.stringify(['medical-registro-paciente', email, codigo]))
   .digest('hex');
 const codigoInvalido = () => httpError(400, 'Código inválido, vencido o sin intentos. Puedes solicitar uno nuevo.');
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 async function solicitarCodigo(email) {
   if (typeof email !== 'string') throw httpError(400, 'Correo inválido');
