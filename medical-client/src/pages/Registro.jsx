@@ -67,9 +67,9 @@ export default function Registro() {
               <p className="mt-1 break-all">Revisa el correo que enviamos a {email} e ingresa el código de seis dígitos.</p>
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <label className="block font-medium text-slate-700">Código de verificación
-              <input className={`${campoPublico} max-w-48 text-center font-mono tracking-[0.3em]`}
+              <input className={`${campoPublico} block max-w-48 text-center font-mono tracking-[0.3em]`}
                 name="codigo" inputMode="numeric" autoComplete="one-time-code"
                 pattern="[0-9]{6}" maxLength={6} required />
             </label>

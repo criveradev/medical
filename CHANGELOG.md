@@ -4,6 +4,12 @@ All notable changes to Medical are documented in this file. Releases follow
 [Semantic Versioning](https://semver.org/) and are prepared and published
 manually from GitHub Actions.
 
+## 1.1.1
+
+- Fix patient registration on Node runtimes without `RegExp.escape`, while preserving duplicate RUT detection.
+- Place the verification code field below its label and increase spacing around it.
+- Bundle phone country flags so they render under the production content security policy.
+
 ## 1.1.0
 
 - Add a public appointment agenda with specialty, professional and available-slot selection.
