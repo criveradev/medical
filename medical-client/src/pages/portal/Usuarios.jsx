@@ -3,7 +3,8 @@ import { Plus, Pencil, Ban, KeyRound, ShieldOff } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { useFetch } from '../../hooks/useFetch';
-import { PageHeader, Card, Btn, Modal, Field, ErrorMsg, Spinner, Empty, Badge, PasswordInput, Telefono, inputCls } from '../../components/ui';
+import { PageHeader, Card, Btn, Modal, Field, ErrorMsg, Spinner, Empty, Badge, PasswordInput, inputCls } from '../../components/ui';
+import Telefono from '../../components/Telefono';
 import { rolInfo } from '../../lib/roles';
 import { useToast } from '../../context/ToastContext';
 

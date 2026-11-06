@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Plus, Search, Pencil, Ban } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useFetch } from '../../hooks/useFetch';
-import { PageHeader, Card, Btn, Modal, Field, ErrorMsg, Spinner, Empty, Telefono, inputCls } from '../../components/ui';
+import { PageHeader, Card, Btn, Modal, Field, ErrorMsg, Spinner, Empty, inputCls } from '../../components/ui';
+import Telefono from '../../components/Telefono';
 import { formatearRut } from '../../lib/format';
 import { useToast } from '../../context/ToastContext';
 

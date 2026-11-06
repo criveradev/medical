@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { Loader2, X, Inbox, AlertCircle, Eye, EyeOff } from 'lucide-react';
-import PhoneInput from 'react-phone-number-input';
-import 'react-phone-number-input/style.css';
 
 /** Clase Tailwind reutilizable para inputs/selects/textarea. @type {string} */
 export const inputCls =
@@ -150,24 +148,6 @@ export function PasswordInput({ value, onChange, placeholder = '•••••�
         {ver ? <EyeOff size={16} /> : <Eye size={16} />}
       </button>
     </div>
-  );
-}
-
-/**
- * Campo de teléfono internacional (react-phone-number-input), por defecto Chile.
- * @param {{value: string, onChange: function(string): void, defaultCountry?: string}} props
- * @returns {JSX.Element}
- */
-export function Telefono({ value, onChange, defaultCountry = 'CL' }) {
-  return (
-    <PhoneInput
-      international
-      countryCallingCodeEditable={false}
-      defaultCountry={defaultCountry}
-      value={value || undefined}
-      onChange={(v) => onChange(v || '')}
-      placeholder="Ingresa el número"
-    />
   );
 }
 
