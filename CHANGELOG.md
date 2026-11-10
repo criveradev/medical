@@ -4,6 +4,12 @@ All notable changes to Medical are documented in this file. Releases follow
 [Semantic Versioning](https://semver.org/) and are prepared and published
 manually from GitHub Actions.
 
+## 1.1.2
+
+- Replace RUT-based initial credentials for staff-created patients with expiring, single-use account invitations.
+- Allow staff to resend activation invitations from the patient list.
+- Reject MFA challenge tokens as sessions in the HTTP API and Socket.IO.
+
 ## 1.1.1
 
 - Fix patient registration on Node runtimes without `RegExp.escape`, while preserving duplicate RUT detection.
