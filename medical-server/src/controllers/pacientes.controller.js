@@ -4,9 +4,10 @@
 
 const Paciente = require('../models/Paciente');
 const User = require('../models/User');
-const Role = require('../models/Role');
 const Cita = require('../models/Cita');
-const logger = require('../config/logger');
+const {
+  crearPacienteConInvitacion, reenviarInvitacion,
+} = require('../services/activacion-paciente.service');
 
 /**
  * Lista pacientes activos con paginación y búsqueda (nombre, apellido, email o RUT).
@@ -49,7 +50,7 @@ exports.listar = async (req, res, next) => {
 
     const total = await Paciente.countDocuments(filtro);
     const pacientes = await Paciente.find(filtro)
-      .populate('usuarioId', 'nombre apellido email telefono')
+      .populate('usuarioId', 'nombre apellido email telefono pendienteActivacion')
       .skip(skip).limit(limit).sort({ createdAt: -1 });
 
     res.json({ total, pagina: page, totalPaginas: Math.ceil(total / limit), porPagina: limit, pacientes });
@@ -100,46 +101,31 @@ exports.miFicha = async (req, res, next) => {
   }
 };
 
-/**
- * Registra un paciente: crea su usuario (rol paciente) y su ficha clínica.
- * El RUT se guarda formateado; la contraseña inicial es el RUT sin puntos ni guion.
- * @route POST /api/v1/pacientes
- * @param {import('express').Request} req - body: { nombre, apellido, email, telefono, rut, fechaNacimiento, genero, direccion, prevision, contactoEmergencia }.
- * @param {import('express').Response} res
- * @param {import('express').NextFunction} next
- * @returns {Promise<void>} 201 { paciente } | 409 RUT/email duplicado.
- */
 exports.crear = async (req, res, next) => {
-  let userCreado = null;
   try {
-    const { nombre, apellido, email, telefono, rut, fechaNacimiento, genero, direccion, prevision, contactoEmergencia } = req.body;
-
-    // Crear usuario con rol paciente.
-    // Se guarda el RUT formateado, pero la contraseña inicial es el RUT
-    // "limpio" (sin puntos ni guion) para que sea más fácil de teclear.
-    const role = await Role.findOne({ nombre: 'paciente' });
-    if (!role) return res.status(400).json({ mensaje: 'Rol paciente no encontrado, ejecuta el seed de roles' });
-
-    const rutLimpio = String(rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
-
-    userCreado = await User.create({ nombre, apellido, email, password: rutLimpio, roleId: role._id, telefono });
-    const paciente = await Paciente.create({ usuarioId: userCreado._id, rut, fechaNacimiento, genero, direccion, prevision, contactoEmergencia });
-
+    const { paciente, invitacionEnviada } = await crearPacienteConInvitacion(req.body, req.requestId);
     res.status(201).json({
       mensaje: 'Paciente registrado',
       paciente,
-      nota: 'La contraseña inicial es el RUT sin puntos ni guion'
+      invitacionEnviada,
+      nota: invitacionEnviada
+        ? 'El paciente debe activar su cuenta desde el correo de invitación.'
+        : 'El paciente está registrado. Reenvía la invitación para que pueda activar su cuenta.',
     });
   } catch (error) {
-    if (userCreado) {
-      try {
-        await User.findByIdAndDelete(userCreado._id);
-      } catch (cleanupError) {
-        logger.error(`No se pudo revertir el usuario huérfano ${userCreado._id}: ${cleanupError.message}`);
-      }
-    }
     if (error.code === 11000)
       return res.status(409).json({ mensaje: 'El RUT o email ya está registrado' });
+    next(error);
+  }
+};
+
+exports.reenviarActivacion = async (req, res, next) => {
+  try {
+    const enviada = await reenviarInvitacion(req.params.id, req.requestId);
+    if (!enviada)
+      return res.status(502).json({ mensaje: 'No se pudo enviar la invitación. Intenta de nuevo más tarde.' });
+    res.json({ mensaje: 'Invitación enviada' });
+  } catch (error) {
     next(error);
   }
 };

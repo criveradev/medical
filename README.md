@@ -97,7 +97,7 @@ El repositorio es un **monorepo** con dos paquetes: **`medical-server`** (la API
 - Correo automático al agendar y recordatorio el día previo (cron)
 
 ### 👥 Pacientes y doctores
-- Registro de pacientes (RUT chileno con formato automático, RUT como contraseña inicial)
+- Alta de pacientes con RUT formateado e [invitación de activación](./docs/activacion-pacientes.md) por correo.
 - Gestión de doctores con matrícula automática y editable, especialidad y horarios
 - Foto de perfil para cualquier usuario (subida a Cloudinary con redimensionado en cliente)
 
@@ -1000,16 +1000,18 @@ Distribuido bajo la licencia MIT. Ver [`LICENSE`](./LICENSE) para más informaci
 ### 👨🏻‍💻 Developed by
 
 <p align="center">
-  <picture>
-    <source
-      media="(prefers-color-scheme: dark)"
-      srcset="https://res.cloudinary.com/docscluster/image/upload/v1782698757/logo-dark_qddsa3.svg">
-    <source
-      media="(prefers-color-scheme: light)"
-      srcset="https://res.cloudinary.com/docscluster/image/upload/v1782698757/logo-light_wilpp4.svg">
-    <img
-      alt="criveradev"
-      src="https://res.cloudinary.com/docscluster/image/upload/v1782698757/logo-light_wilpp4.svg"
-      width="200">
-  </picture>
+  <a href="https://criveradev.com" aria-label="Visitar el portafolio de criveradev">
+    <picture>
+      <source
+        media="(prefers-color-scheme: dark)"
+        srcset="https://res.cloudinary.com/docscluster/image/upload/v1782698757/logo-dark_qddsa3.svg">
+      <source
+        media="(prefers-color-scheme: light)"
+        srcset="https://res.cloudinary.com/docscluster/image/upload/v1782698757/logo-light_wilpp4.svg">
+      <img
+        alt="criveradev"
+        src="https://res.cloudinary.com/docscluster/image/upload/v1782698757/logo-light_wilpp4.svg"
+        width="200">
+    </picture>
+  </a>
 </p>

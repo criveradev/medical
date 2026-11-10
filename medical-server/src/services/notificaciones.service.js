@@ -3,12 +3,11 @@
 // Emisión de eventos en tiempo real para el sistema médico
 // ═══════════════════════════════════════════════════════════════
 
-const jwt      = require('jsonwebtoken');
 const logger   = require('../config/logger');
-const User     = require('../models/User');
 const Doctor   = require('../models/Doctor');
 const Paciente = require('../models/Paciente');
 const { ACCESS_COOKIE, parseCookies } = require('../config/auth-cookies');
+const { obtenerUsuarioDeSesion } = require('./sesion.service');
 
 let io = null;
 
@@ -31,10 +30,8 @@ const inicializar = (socketIo) => {
       const token = (socket.handshake.auth && socket.handshake.auth.token)
         || parseCookies(socket.request.headers.cookie)[ACCESS_COOKIE];
       if (!token) return next(new Error('No autorizado'));
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id).select('+sessionVersion').populate('roleId');
-      if (!user || !user.activo || !user.roleId || !user.roleId.activo
-        || decoded.sv !== user.sessionVersion) return next(new Error('No autorizado'));
+      const user = await obtenerUsuarioDeSesion(token);
+      if (!user) return next(new Error('No autorizado'));
       socket.user = user;
       next();
     } catch {

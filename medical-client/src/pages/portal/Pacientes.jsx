@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Plus, Search, Pencil, Ban } from 'lucide-react';
+import { Plus, Search, Pencil, Ban, Mail } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useFetch } from '../../hooks/useFetch';
-import { PageHeader, Card, Btn, Modal, Field, ErrorMsg, Spinner, Empty, inputCls } from '../../components/ui';
+import { PageHeader, Card, Btn, Badge, Modal, Field, ErrorMsg, Spinner, Empty, inputCls } from '../../components/ui';
 import Telefono from '../../components/Telefono';
 import { formatearRut } from '../../lib/format';
 import { useToast } from '../../context/ToastContext';
@@ -14,7 +14,7 @@ const vacio = {
 
 /**
  * Página de administración de pacientes (CRUD): registra el usuario+ficha del
- * paciente (RUT como contraseña inicial) y permite editar sus datos.
+ * paciente, gestiona su invitación de activación y permite editar sus datos.
  * @returns {JSX.Element}
  */
 export default function Pacientes() {
@@ -30,6 +30,7 @@ export default function Pacientes() {
   const [form, setForm] = useState(vacio);
   const [err, setErr] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [reenviando, setReenviando] = useState(null);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -57,23 +58,40 @@ export default function Pacientes() {
     setErr('');
     setGuardando(true);
     try {
+      let alta;
       if (editId) {
         await api.put(`/pacientes/${editId}`, {
           nombre: form.nombre, apellido: form.apellido, telefono: form.telefono,
           direccion: form.direccion, prevision: form.prevision,
         });
       } else {
-        await api.post('/pacientes', form);
+        alta = await api.post('/pacientes', form);
       }
       setAbierto(false);
       setForm(vacio);
-      toast.success(editId ? 'Paciente actualizado' : 'Paciente registrado');
+      if (alta?.invitacionEnviada === false) {
+        toast.error('Paciente registrado. La invitación no se pudo enviar. Puedes reenviarla desde la lista.');
+      } else {
+        toast.success(editId ? 'Paciente actualizado' : 'Paciente registrado e invitación enviada');
+      }
       setEditId(null);
       reload();
     } catch (e2) {
       setErr(e2.message);
     } finally {
       setGuardando(false);
+    }
+  }
+
+  async function reenviarActivacion(pacienteId) {
+    setReenviando(pacienteId);
+    try {
+      await api.post(`/pacientes/${pacienteId}/activacion`, {});
+      toast.success('Invitación de activación enviada');
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setReenviando(null);
     }
   }
 
@@ -138,15 +156,24 @@ export default function Pacientes() {
                   <tr key={p._id} className="hover:bg-slate-50">
                     <td className="px-5 py-3 font-medium text-slate-800">
                       {p.usuarioId?.nombre} {p.usuarioId?.apellido}
+                      {p.usuarioId?.pendienteActivacion && (
+                        <div className="mt-1"><Badge color="amber">Activación pendiente</Badge></div>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-slate-600">{formatearRut(p.rut)}</td>
                     <td className="px-5 py-3 text-slate-600">{p.usuarioId?.email}</td>
                     <td className="px-5 py-3 text-slate-600">{p.usuarioId?.telefono || '—'}</td>
                     <td className="px-5 py-3">
-                      <div className="flex gap-1.5">
+                      <div className="flex flex-wrap gap-1.5">
                         <button onClick={() => abrirEditar(p)} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 transition hover:bg-slate-50">
                           <Pencil size={13} /> Editar
                         </button>
+                        {p.usuarioId?.pendienteActivacion && (
+                          <button onClick={() => reenviarActivacion(p._id)} disabled={reenviando !== null}
+                            className="inline-flex items-center gap-1 rounded-lg border border-brand-200 px-2 py-1 text-xs text-brand-700 transition hover:bg-brand-50 disabled:opacity-50">
+                            <Mail size={13} aria-hidden="true" /> {reenviando === p._id ? 'Enviando…' : 'Reenviar invitación'}
+                          </button>
+                        )}
                         <button onClick={() => desactivar(p)} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2 py-1 text-xs text-red-600 transition hover:bg-red-50">
                           <Ban size={13} /> Desactivar
                         </button>
@@ -172,6 +199,7 @@ export default function Pacientes() {
       <Modal open={abierto} onClose={() => setAbierto(false)} title={editId ? 'Editar paciente' : 'Nuevo paciente'}>
         <form onSubmit={guardar} className="space-y-4">
           <ErrorMsg>{err}</ErrorMsg>
+          {!editId && <p className="text-sm text-slate-600">El paciente recibirá una invitación para elegir su contraseña.</p>}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Nombre">
               <input className={inputCls} value={form.nombre} onChange={(e) => set('nombre', e.target.value)} required />
@@ -193,7 +221,7 @@ export default function Pacientes() {
           ) : (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="RUT" hint="Contraseña inicial = RUT sin puntos ni guion">
+                <Field label="RUT">
                   <input className={inputCls} value={form.rut} onChange={(e) => set('rut', formatearRut(e.target.value))} placeholder="12.345.678-9" maxLength={12} required />
                 </Field>
                 <Field label="Fecha de nacimiento">

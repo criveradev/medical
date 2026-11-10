@@ -131,3 +131,14 @@ exports.enviarVerificacionRegistro = ({ email, codigo }) => enviar({
     notas: ['El código vence en 15 minutos.'],
   }),
 });
+
+exports.enviarActivacionPaciente = ({ email, enlace }) => enviar({
+  to: email,
+  subject: 'Activa tu cuenta de Medical',
+  ...renderizarEmail({
+    titulo: 'Activa tu cuenta',
+    mensaje: 'Usa esta invitación para elegir tu contraseña y acceder al portal de pacientes.',
+    accion: { url: enlace, texto: 'Activar cuenta' },
+    notas: ['El enlace es de un solo uso y vence en 24 horas. Si no esperabas esta invitación, ignora el mensaje.'],
+  }),
+});

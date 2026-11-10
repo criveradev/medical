@@ -25,6 +25,12 @@ if (process.env.NODE_ENV !== 'test') {
         release: process.env.APP_VERSION || `medical-server@${version}`,
         // En una app de salud NO enviar PII (IPs, cabeceras, cuerpos) a un tercero.
         // Evita filtrar emails, RUT, tokens y datos clínicos a Sentry.
-        sendDefaultPii: false
+        sendDefaultPii: false,
+        beforeSend(event) {
+            if (/\/api\/v1\/registro\/activacion(?:[/?#]|$)/.test(event.request?.url || '')) {
+                delete event.request.data;
+            }
+            return event;
+        }
     });
 }

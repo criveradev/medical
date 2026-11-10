@@ -3,7 +3,7 @@ const LOGO_CID = 'logo@medical.criveradev.com';
 const entidadesHtml = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const escapar = valor => String(valor).replace(/[&<>"']/g, caracter => entidadesHtml[caracter]);
 
-function renderizarEmail({ titulo, saludo, mensaje, detalles = [], codigo, notas = [] }) {
+function renderizarEmail({ titulo, saludo, mensaje, detalles = [], codigo, accion, notas = [] }) {
   const parrafo = texto => `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;">${escapar(texto)}</p>`;
   const filas = detalles.map(([etiqueta, valor]) => `
     <tr><td style="padding:6px 0;">
@@ -25,10 +25,16 @@ function renderizarEmail({ titulo, saludo, mensaje, detalles = [], codigo, notas
       <code style="font-family:Consolas,monospace;font-size:32px;font-weight:bold;letter-spacing:5px;">${escapar(codigo)}</code>
     </p>` : '';
 
+  const enlace = accion ? `
+    <p style="margin:0 0 20px;">
+      <a href="${escapar(accion.url)}" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#1a4d84;color:white;text-decoration:none;font-weight:bold;">${escapar(accion.texto)}</a>
+    </p>` : '';
+
   return {
     text: [
       'Medical', titulo, saludo, mensaje, codigo,
       ...detalles.map(([etiqueta, valor]) => `${etiqueta}: ${valor}`),
+      accion?.url,
       ...notas,
     ].filter(Boolean).join('\n\n'),
     html: `<!doctype html>
@@ -58,6 +64,7 @@ function renderizarEmail({ titulo, saludo, mensaje, detalles = [], codigo, notas
           ${parrafo(mensaje)}
           ${bloque}
           ${verificacion}
+          ${enlace}
           ${notas.map(parrafo).join('')}
         </td></tr>
         <tr><td style="padding:16px 24px;border-top:1px solid #d8e9f7;color:#475569;font-size:13px;">

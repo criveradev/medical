@@ -3,6 +3,8 @@ const { generate } = require('otplib');
 const app = require('../src/app');
 const Role = require('../src/models/Role');
 const User = require('../src/models/User');
+const { ACCESS_COOKIE } = require('../src/config/auth-cookies');
+const { inicializar } = require('../src/services/notificaciones.service');
 
 const credentials = {
   nombre: 'Marta',
@@ -40,7 +42,7 @@ describe('Seguridad de sesión web', () => {
 });
 
 describe('Autenticación multifactor', () => {
-  test('activa TOTP, exige desafío al entrar y acepta un código válido', async () => {
+  test('rechaza el desafío como sesión HTTP o Socket.IO hasta verificar el segundo factor', async () => {
     await createUser();
     const firstLogin = await request(app)
       .post('/api/v1/auth/login')
@@ -67,14 +69,45 @@ describe('Autenticación multifactor', () => {
     expect(challengedLogin.status).toBe(202);
     expect(challengedLogin.body).toMatchObject({ mfaRequired: true });
     expect(challengedLogin.body.accessToken).toBeUndefined();
+    const { challengeToken } = challengedLogin.body;
+    const io = { use: jest.fn(), on: jest.fn() };
+    inicializar(io);
+    const [[autenticarSocket]] = io.use.mock.calls;
+
+    const [porHeader, porCookie] = await Promise.all([
+      request(app).get('/api/v1/auth/perfil').set('Authorization', `Bearer ${challengeToken}`),
+      request(app).get('/api/v1/auth/perfil').set('Cookie', `${ACCESS_COOKIE}=${challengeToken}`),
+    ]);
+    expect([porHeader.status, porCookie.status]).toEqual([401, 401]);
+
+    const intentosSocket = [
+      { handshake: { auth: { token: challengeToken } }, request: { headers: {} } },
+      { handshake: {}, request: { headers: { cookie: `${ACCESS_COOKIE}=${challengeToken}` } } },
+    ];
+    for (const socket of intentosSocket) {
+      const next = jest.fn();
+      await autenticarSocket(socket, next);
+      expect(next).toHaveBeenCalledWith(expect.any(Error));
+      expect(socket.user).toBeUndefined();
+    }
 
     const verificationCode = await generate({ secret: setup.body.secret });
     const verified = await request(app)
       .post('/api/v1/auth/mfa/verify')
-      .send({ challengeToken: challengedLogin.body.challengeToken, code: verificationCode });
+      .send({ challengeToken, code: verificationCode });
     expect(verified.status).toBe(200);
     expect(verified.body.usuario.mfaEnabled).toBe(true);
     expect(verified.body.accessToken).toBeTruthy();
+
+    const perfil = await request(app).get('/api/v1/auth/perfil')
+      .set('Authorization', `Bearer ${verified.body.accessToken}`);
+    expect(perfil.status).toBe(200);
+
+    const socket = { handshake: {}, request: { headers: { cookie: `${ACCESS_COOKIE}=${verified.body.accessToken}` } } };
+    const next = jest.fn();
+    await autenticarSocket(socket, next);
+    expect(next).toHaveBeenCalledWith();
+    expect(String(socket.user._id)).toBe(verified.body.usuario.id);
   });
 
   test('rechaza un desafío incompleto sin producir error interno', async () => {
