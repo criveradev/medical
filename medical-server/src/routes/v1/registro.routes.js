@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { body, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 const { solicitarCodigo, registrar } = require('../../services/registro.service');
+const { activarCuenta } = require('../../services/activacion-paciente.service');
 const logger = require('../../config/logger');
 
 const validarEmail = body('email').isString().bail().trim().isEmail().bail().toLowerCase();
@@ -9,6 +10,12 @@ const limitarRegistro = rateLimit({
   windowMs: 15 * 60_000,
   limit: process.env.NODE_ENV === 'test' ? 100 : 10,
   message: { mensaje: 'Demasiados intentos de registro. Intenta en 15 minutos.' },
+});
+
+const limitarActivacion = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: process.env.NODE_ENV === 'test' ? 100 : 10,
+  message: { mensaje: 'Demasiados intentos de activación. Intenta en 15 minutos.' },
 });
 
 function validarRegistro(req, res, next) {
@@ -43,6 +50,16 @@ router.post('/', limitarRegistro, validarEmail,
   async (req, res) => {
     await registrar(req.body);
     res.status(201).json({ mensaje: 'Cuenta creada' });
+  },
+);
+
+router.post('/activacion', limitarActivacion,
+  body('token').isString().bail().matches(/^[a-f0-9]{24}\.[A-Za-z0-9_-]{43}$/),
+  body('password').isString().bail().isLength({ min: 10 }).custom(value => Buffer.byteLength(value) <= 72),
+  validarRegistro,
+  async (req, res) => {
+    await activarCuenta(req.body);
+    res.json({ mensaje: 'Cuenta activada. Ya puedes iniciar sesión.' });
   },
 );
 

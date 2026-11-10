@@ -5,6 +5,11 @@
 const mongoose = require('mongoose');
 const bcrypt   = require('bcryptjs');
 
+const activacionSchema = new mongoose.Schema({
+  huella: { type: String, required: true },
+  venceEn: { type: Date, required: true },
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
   nombre:       { type: String, required: true, trim: true },
   apellido:     { type: String, required: true, trim: true },
@@ -15,6 +20,8 @@ const userSchema = new mongoose.Schema({
   telefono:     { type: String },
   foto:         { type: String, trim: true }, // URL de Cloudinary (avatar)
   activo:       { type: Boolean, default: true },
+  pendienteActivacion: { type: Boolean, default: false },
+  activacion: { type: activacionSchema, select: false },
   sessionVersion: { type: Number, default: 0, min: 0, select: false },
   mfaEnabled: { type: Boolean, default: false },
   mfaSecret: { type: String, default: null, select: false },
@@ -55,6 +62,7 @@ userSchema.methods.toJSON = function () {
   delete obj.password;
   delete obj.refreshToken;
   delete obj.sessionVersion;
+  delete obj.activacion;
   delete obj.mfaSecret;
   delete obj.mfaRecoveryCodes;
   return obj;

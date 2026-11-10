@@ -199,7 +199,7 @@
  */
 
 const router = require('express').Router();
-const { listar, obtener, crear, actualizar, eliminar, subirFoto, miFicha } = require('../../controllers/pacientes.controller');
+const { listar, obtener, crear, reenviarActivacion, actualizar, eliminar, subirFoto, miFicha } = require('../../controllers/pacientes.controller');
 const { authenticate, authorize, scopeDoctor } = require('../../middleware/auth');
 const validar = require('../../middleware/validar');
 const { uploadAvatar } = require('../../config/multer');
@@ -211,6 +211,7 @@ router.get('/mi-ficha', authenticate, miFicha);
 router.get('/', authenticate, authorize('pacientes', 'leer'), scopeDoctor, listar);
 router.get('/:id', authenticate, authorize('pacientes', 'leer'), scopeDoctor, obtener);
 router.post('/', authenticate, authorize('pacientes', 'crear'), validarCrearPaciente, validar, crear);
+router.post('/:id/activacion', authenticate, authorize('pacientes', 'crear'), reenviarActivacion);
 router.put('/:id', authenticate, authorize('pacientes', 'editar'), actualizar);
 router.delete('/:id', authenticate, authorize('pacientes', 'eliminar'), eliminar);
 router.put('/:id/foto', authenticate, authorize('pacientes', 'editar'), uploadAvatar.single('foto'), subirFoto);

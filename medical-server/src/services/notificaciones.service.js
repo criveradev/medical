@@ -33,7 +33,7 @@ const inicializar = (socketIo) => {
       if (!token) return next(new Error('No autorizado'));
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const user = await User.findById(decoded.id).select('+sessionVersion').populate('roleId');
-      if (!user || !user.activo || !user.roleId || !user.roleId.activo
+      if (!user || !user.activo || user.pendienteActivacion || !user.roleId || !user.roleId.activo
         || decoded.sv !== user.sessionVersion) return next(new Error('No autorizado'));
       socket.user = user;
       next();

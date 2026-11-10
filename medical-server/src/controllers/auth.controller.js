@@ -87,7 +87,7 @@ exports.login = async (req, res, next) => {
 
     // password es select:false en el schema → pedirlo explícitamente
     const user = await User.findOne({ email }).select('+password +sessionVersion').populate('roleId');
-    if (!user || !user.activo || !user.roleId || !user.roleId.activo)
+    if (!user || !user.activo || user.pendienteActivacion || !user.roleId || !user.roleId.activo)
       return res.status(401).json({ mensaje: 'Credenciales inválidas' });
 
     const valido = await user.compararPassword(password);
@@ -131,7 +131,7 @@ exports.refresh = async (req, res, next) => {
 
     // Comparar el hash del token recibido con el guardado (evita uso tras logout)
     const user = await User.findById(decoded.id).select('+refreshToken +sessionVersion').populate('roleId');
-    if (!user || !user.activo || !user.roleId || !user.roleId.activo
+    if (!user || !user.activo || user.pendienteActivacion || !user.roleId || !user.roleId.activo
       || decoded.sv !== user.sessionVersion || user.refreshToken !== hashToken(refreshToken))
       return res.status(401).json({ mensaje: 'Refresh token inválido' });
 
@@ -202,7 +202,7 @@ exports.verificarMfaLogin = async (req, res, next) => {
     const user = await User.findById(decoded.id)
       .select('+sessionVersion +mfaSecret +mfaRecoveryCodes')
       .populate('roleId');
-    if (!user || !user.activo || !user.roleId || !user.roleId.activo
+    if (!user || !user.activo || user.pendienteActivacion || !user.roleId || !user.roleId.activo
       || !user.mfaEnabled || decoded.sv !== user.sessionVersion) {
       return res.status(401).json({ mensaje: 'Desafío MFA inválido' });
     }

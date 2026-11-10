@@ -30,7 +30,7 @@ const authenticate = async (req, res, next) => {
     // Cargar usuario con su rol desde la BD
     const user = await User.findById(decoded.id).select('+sessionVersion').populate('roleId');
 
-    if (!user || !user.activo || !user.roleId || !user.roleId.activo || decoded.sv !== user.sessionVersion)
+    if (!user || !user.activo || user.pendienteActivacion || !user.roleId || !user.roleId.activo || decoded.sv !== user.sessionVersion)
       return res.status(401).json({ mensaje: 'Usuario no autorizado' });
 
     // Adjuntar usuario y rol al request para uso en controladores
