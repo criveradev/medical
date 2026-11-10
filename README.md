@@ -19,13 +19,15 @@ exámenes, pagos con comprobante y notificaciones en tiempo real.
 [![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind](https://img.shields.io/badge/Tailwind-4.x-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
+
 <br/>
 
-🌐 **Dominio previsto:** `medical.criveradev.com` &nbsp;·&nbsp;
-📡 **API prevista:** `api.medical.criveradev.com` &nbsp;·&nbsp;
+🔗 **[Ver demo en vivo](https://medical.criveradev.com`)** &nbsp;·&nbsp;
+📡 **[API en producción](https://api.medical.criveradev.com/health)** &nbsp;·&nbsp;
 🐛 **[Reportar bug](https://github.com/criveradev/Medical/issues)**
 
 <br/>
+
 
 > Esas URLs quedan disponibles después de completar el despliegue manual. La
 > cuenta local de demostración es **admin@medical.com** / **Admin1234**; nunca
