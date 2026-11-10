@@ -2,11 +2,10 @@
 // src/middleware/auth.js — Autenticación y autorización JWT
 // ═══════════════════════════════════════════════════════════════
 
-const jwt      = require('jsonwebtoken');
-const User     = require('../models/User');
 const Paciente = require('../models/Paciente');
 const Doctor   = require('../models/Doctor');
 const { ACCESS_COOKIE, parseCookies } = require('../config/auth-cookies');
+const { obtenerUsuarioDeSesion } = require('../services/sesion.service');
 
 /**
  * Middleware: verifica el JWT del header Authorization y carga `req.user` y
@@ -25,12 +24,8 @@ const authenticate = async (req, res, next) => {
 
     if (!token)
       return res.status(401).json({ mensaje: 'Token no proporcionado' });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Cargar usuario con su rol desde la BD
-    const user = await User.findById(decoded.id).select('+sessionVersion').populate('roleId');
-
-    if (!user || !user.activo || user.pendienteActivacion || !user.roleId || !user.roleId.activo || decoded.sv !== user.sessionVersion)
+    const user = await obtenerUsuarioDeSesion(token);
+    if (!user)
       return res.status(401).json({ mensaje: 'Usuario no autorizado' });
 
     // Adjuntar usuario y rol al request para uso en controladores
