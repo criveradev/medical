@@ -10,6 +10,10 @@ RUN npm ci && chown -R node:node /app/node_modules
 FROM dependencies AS development
 ENV NODE_ENV=development
 COPY --chown=node:node . .
+
+RUN mkdir -p /app/dist \
+    && chown node:node /app/dist
+
 USER node
 EXPOSE 4200
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
