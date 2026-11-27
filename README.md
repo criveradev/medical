@@ -390,10 +390,10 @@ Cloudinary, email, Sentry o reemplazar las claves locales de desarrollo.
 Inicializa los datos y, cuando termines, detén los servicios:
 
 ```bash
-npm run docker:seed:roles
-npm run docker:seed:catalogos
-npm run docker:seed:admin
-npm run docker:down
+docker compose exec backend npm run seed:roles
+docker compose exec backend npm run seed:catalogos
+docker compose exec backend npm run seed:admin
+docker compose down
 ```
 
 ---
