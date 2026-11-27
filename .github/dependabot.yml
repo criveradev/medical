@@ -7,14 +7,22 @@ updates:
     groups:
       backend-dependencies:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: npm
     directory: /medical-client
     schedule:
       interval: weekly
     groups:
+      react-dependencies:
+        patterns: ["react", "react-dom"]
+      vite-dependencies:
+        patterns: ["vite", "@vitejs/plugin-react"]
       frontend-dependencies:
         patterns: ["*"]
+        # Playwright must be updated alongside its Docker image in the same PR.
+        exclude-patterns: ["react", "react-dom", "vite", "@vitejs/plugin-react", "@playwright/test"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: github-actions
     directory: /
