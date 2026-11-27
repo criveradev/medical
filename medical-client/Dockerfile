@@ -29,7 +29,7 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
 
-FROM mcr.microsoft.com/playwright:v1.62.0-noble AS e2e
+FROM mcr.microsoft.com/playwright:v1.65.1-noble AS e2e
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
