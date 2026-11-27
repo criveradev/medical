@@ -15,14 +15,14 @@ exámenes, pagos con comprobante y notificaciones en tiempo real.
 [![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![Redis](https://img.shields.io/badge/Redis-Cache-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
 [![Socket.io](https://img.shields.io/badge/Socket.io-Realtime-010101?style=for-the-badge&logo=socket.io&logoColor=white)](https://socket.io/)
-[![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind](https://img.shields.io/badge/Tailwind-4.x-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
 
 <br/>
 
-🔗 **[Ver demo en vivo](https://medical.criveradev.com`)** &nbsp;·&nbsp;
+🔗 **[Ver demo en vivo](https://medical.criveradev.com)** &nbsp;·&nbsp;
 📡 **[API en producción](https://api.medical.criveradev.com/health)** &nbsp;·&nbsp;
 🐛 **[Reportar bug](https://github.com/criveradev/Medical/issues)**
 
@@ -132,13 +132,13 @@ El repositorio es un **monorepo** con dos paquetes: **`medical-server`** (la API
 |-----------|---------|-----|
 | Node.js | 24.x LTS | Entorno de ejecución |
 | Express | 5.x | Framework HTTP |
-| MongoDB / Mongoose | 7.x / 9.x | Base de datos documental y ODM |
-| Redis (ioredis) | 5.x | Caché con degradación controlada |
+| MongoDB / Mongoose | 7.x / 9.x | Base de datos documental y ODM (replica set en Docker) |
+| Redis / ioredis | 7.x / 6.x | Caché con degradación controlada |
 | JSON Web Token | 9.x | Autenticación (access + refresh) |
 | bcryptjs | 3.x | Hash de contraseñas |
 | Socket.io | 4.x | Notificaciones en tiempo real |
 | Multer / Cloudinary SDK | 2.x / 2.x | Subida de archivos a CDN |
-| Nodemailer | 9.x | Envío de correos |
+| Resend / Nodemailer | API HTTP / 10.x | Correo transaccional y alternativa SMTP |
 | node-cron | 4.x | Recordatorios programados |
 | PDFKit + ExcelJS | — | Generación de reportes PDF/Excel |
 | express-validator | 7.x | Validación de entrada |
@@ -151,15 +151,17 @@ El repositorio es un **monorepo** con dos paquetes: **`medical-server`** (la API
 
 | Tecnología | Versión | Uso |
 |-----------|---------|-----|
-| React | 18.x | Librería de interfaz |
-| Vite | 6.x | Bundler y servidor de desarrollo |
+| React / React DOM | 19.3.1 | Librería de interfaz y renderizado |
+| Vite / plugin React | 8.3.8 / 6.3.0 | Bundler Rolldown y servidor de desarrollo |
 | Tailwind CSS | 4.x | Estilos utilitarios (plugin de Vite) |
 | React Router DOM | 7.x | Navegación SPA |
-| Recharts | 2.x | Gráficos del dashboard |
-| lucide-react | — | Iconos |
+| Recharts | 3.11.0 | Gráficos del dashboard |
+| lucide-react | 1.78.0 | Iconos |
 | socket.io-client | 4.x | Notificaciones en tiempo real |
 | react-phone-number-input | 3.x | Campo de teléfono internacional |
-| Playwright | 1.62.x | Pruebas E2E en Chromium |
+| Vitest / React Testing Library | 5.1.1 / 16.3.3 | Pruebas unitarias y de componentes |
+| jest-dom / jsdom | 8.0.0 / 31.0.1 | Matchers y entorno DOM de pruebas |
+| Playwright | 1.65.1 | Pruebas E2E en Chromium |
 
 ### Infraestructura
 
@@ -280,8 +282,8 @@ Medical/
 ### Requisitos previos
 
 - **Node.js** v24 LTS — [Descargar](https://nodejs.org/)
-- **npm** v11 o superior (incluido con Node)
-- **MongoDB** en local, o una cuenta en [MongoDB Atlas](https://www.mongodb.com/atlas)
+- **npm** v11 (incluido en la imagen Node 24 utilizada por Docker)
+- **MongoDB** 7.x en local con replica set para transacciones, o una cuenta en [MongoDB Atlas](https://www.mongodb.com/atlas)
 - Cuenta en [Cloudinary](https://cloudinary.com/) (gratuita) para subir archivos
 - _(Opcional)_ **Redis** para caché · **Docker** para levantar todo en contenedores
 
@@ -300,6 +302,7 @@ cd medical-server && npm ci
 
 # Frontend
 cd ../medical-client && npm ci
+cd ..
 ```
 
 ### 3. Configurar variables de entorno
@@ -357,13 +360,14 @@ La documentación de la API queda en `http://localhost:3000/api/v1/docs`.
 
 ### Alternativa recomendada: Docker
 
-Levanta la aplicación completa sin instalar Node.js, MongoDB ni Redis en tu
-máquina:
+Desde la raíz del repositorio, levanta la aplicación completa sin instalar Node.js,
+MongoDB ni Redis en tu máquina (solo Docker y Compose):
 
 ```bash
 cd medical-server
-npm run docker:up
-npm run docker:logs         # opcional: seguir frontend y backend
+docker compose up -d --build --wait
+docker compose ps
+docker compose logs -f frontend backend # opcional
 ```
 
 Servicios disponibles:
@@ -372,9 +376,11 @@ Servicios disponibles:
 |----------|-----|
 | Frontend | `http://localhost:4200` |
 | Backend | `http://localhost:3000` |
+| Health / liveness / readiness | `/health`, `/health/live`, `/health/ready` en el backend |
 | Swagger v1 | `http://localhost:3000/api/v1/docs` |
 
-MongoDB y Redis solo están disponibles dentro de la red de Compose. El código
+MongoDB y Redis solo están disponibles dentro de la red de Compose. MongoDB usa
+un replica set de un nodo (`medical`) para permitir transacciones. El código
 fuente se monta en modo lectura; Vite y Nodemon recargan sus respectivos
 servicios cuando detectan cambios.
 
@@ -637,8 +643,10 @@ con aislamiento a nivel de objeto para el paciente.
 
 ## 🧪 Tests
 
-El backend incluye una suite de integración con **Jest + Supertest** y el
-frontend un flujo E2E con **Playwright**.
+El backend incluye pruebas de integración con **Jest + Supertest**; el frontend
+usa **Vitest + React Testing Library + jest-dom + jsdom** y **Playwright** para E2E.
+La línea base del mantenimiento de noviembre de 2026 es de 223 pruebas de backend
+(20 suites), 15 pruebas de frontend (7 archivos) y un flujo E2E.
 
 La opción recomendada no necesita MongoDB instalado ni un archivo `.env`:
 
@@ -648,20 +656,23 @@ npm run docker:test
 ```
 
 Este comando construye la etapa `test` del Dockerfile, crea un MongoDB temporal
-en memoria, ejecuta Jest y elimina los contenedores al terminar. Usa un proyecto
+en memoria con replica set `medical-test`, ejecuta Jest y elimina los contenedores al terminar. Usa un proyecto
 Compose separado, por lo que nunca toca la base persistente de desarrollo.
 
-También puedes ejecutar las pruebas sin Docker contra una base exclusiva:
+También puedes ejecutar las pruebas sin Docker contra una base exclusiva en un
+replica set de testing ya inicializado. La suite elimina los datos de esa base;
+nunca uses la base de desarrollo o producción. Ejemplo para un replica set local
+llamado `medical-test`:
 
 ```bash
 cd medical-server
-export MONGO_TEST_URI=mongodb://127.0.0.1:27017/medical_test
+export MONGO_TEST_URI='mongodb://127.0.0.1:27017/medical_test?replicaSet=medical-test'
 npm test               # Ejecuta toda la suite
 npm run test:watch     # Modo watch
 npm run test:coverage  # Con reporte de cobertura
 ```
 
-La carpeta `medical-server/tests` contiene 19 archivos de suite. El entorno de
+La carpeta `medical-server/tests` contiene 20 archivos de suite. El entorno de
 pruebas desactiva el envío de correos reales y la conexión a Redis.
 
 Las pruebas de componentes del frontend se ejecutan por separado:
@@ -682,8 +693,9 @@ npm run docker:e2e
 El comando levanta y espera el stack, crea los roles y el administrador de
 desarrollo, y valida un flujo observable completo: protección de rutas, login,
 dashboard, creación/edición/desactivación de un departamento, uso exclusivo del
-contrato `/api/v1` y logout. La imagen y el paquete de Playwright usan la misma
-versión para evitar incompatibilidades entre el runner y los navegadores.
+contrato `/api/v1` y logout. La imagen `mcr.microsoft.com/playwright:v1.65.1-noble`
+y `@playwright/test` usan la misma versión exacta para evitar incompatibilidades
+entre el runner y los navegadores. Actualiza ambos en el mismo PR.
 
 El reporte HTML queda en `medical-client/playwright-report/`; capturas, vídeos y
 trazas de los fallos quedan en `medical-client/test-results/`.
@@ -939,21 +951,27 @@ Production. Desactiva el despliegue automático de producción desde Git para ev
 que un merge se publique antes de crear el release; los previews de pull request
 pueden permanecer habilitados.
 
-### Primer release y rollback
+### Mantenimiento de dependencias
 
-El baseline actual es `1.0.0`. Después de que CI esté verde, abre **Actions →
-Create release → Run workflow**, introduce `1.0.0` y confirma. No crees el tag con
-Git: el workflow manual lo genera solo después de validar las versiones.
+Dependabot revisa semanalmente npm y GitHub Actions. Agrupa actualizaciones minor
+y patch generales, mantiene grupos propios para React/React DOM y Vite/plugin
+React, y separa Playwright para coordinarlo con su imagen Docker. Las migraciones
+mayores se revisan por separado cuando corresponde. Cada PR debe superar CI y
+CodeQL antes de fusionarse.
 
-Para una versión posterior, prepara primero un pull request:
+### Releases y rollback
+
+La versión del producto en `main` es `1.1.2`. Un merge de dependencias no implica
+por sí solo un release ni un despliegue. Para preparar una versión posterior,
+crea primero un pull request (por ejemplo, `1.1.3`):
 
 ```bash
-./scripts/set-version.sh 1.1.0
+./scripts/set-version.sh 1.1.3
 # Actualiza CHANGELOG.md antes de confirmar los cambios.
 git add version.txt CHANGELOG.md medical-server/package.json \
   medical-server/package-lock.json medical-client/package.json \
   medical-client/package-lock.json
-git commit -m "chore: release 1.1.0"
+git commit -m "chore: release 1.1.3"
 ```
 
 Una vez fusionado y con CI verde, ejecuta manualmente **Create release** y luego
@@ -981,7 +999,7 @@ fuentes de versión coincidan. Nunca muevas ni reemplaces un tag publicado.
 - [x] Recordatorios idempotentes con lease distribuido y caché con Redis
 - [x] Auditoría, idempotencia de escrituras y validación binaria de archivos
 - [x] Seguridad: Helmet, CORS, rate limiting, sanitización y Sentry
-- [x] Tests de integración y E2E (Jest, Supertest y Playwright), Swagger y Docker
+- [x] Tests de integración, componentes y E2E (Jest, Supertest, Vitest y Playwright), Swagger y Docker
 - [x] Contrato HTTP v1 aislado, sin alias ni fallback implícito
 
 ### Próximamente
